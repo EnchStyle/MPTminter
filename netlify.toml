@@ -1,0 +1,37 @@
+# Netlify configuration for MPT Minter
+
+# Build settings
+[build]
+  # Directory to publish (current directory since it's a single HTML file)
+  publish = "."
+
+# Headers for better security and performance
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer-when-downgrade"
+    Content-Security-Policy = "default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; img-src 'self' https: data:; connect-src 'self' https: wss:;"
+
+# Redirects
+[[redirects]]
+  from = "/mpt-creator-clean.html"
+  to = "/index.html"
+  status = 301
+
+[[redirects]]
+  from = "/mpt-creator-clean"
+  to = "/index.html"
+  status = 301
+
+# Cache static assets
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
+
+[[headers]]
+  for = "/*.css"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"

@@ -43,9 +43,14 @@ A comprehensive web-based tool for creating and managing Multi-Purpose Tokens (M
 
 ## 🚦 Getting Started
 
-1. **Open the Application**
-   - Simply open `mpt-creator-clean.html` in your web browser
-   - No installation or build process required
+### Option 1: Use the Hosted Version
+   - Visit the live app at [your-netlify-url.netlify.app](https://your-netlify-url.netlify.app)
+   - No installation required
+
+### Option 2: Run Locally
+   - Download or clone this repository
+   - Open `index.html` in your web browser
+   - No build process required
 
 2. **Connect Your Wallet**
    - Enter your wallet's secret key (starts with 's')

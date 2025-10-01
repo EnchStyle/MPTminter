@@ -1,0 +1,2999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MPT Token Creator - TESTING TOOL ONLY</title>
+    <meta name="description" content="Testing tool for Multi-Purpose Tokens (MPT) on XRPL - For educational and testing purposes only. DO NOT use real wallets.">
+    <meta name="keywords" content="XRPL, XRP Ledger, MPT, Multi-Purpose Tokens, Token Creator, Blockchain">
+    <meta name="author" content="XRPL Community">
+    <meta property="og:title" content="MPT Token Creator - XRPL Mainnet">
+    <meta property="og:description" content="Create your own Multi-Purpose Tokens (MPT) on the XRP Ledger">
+    <meta property="og:type" content="website">
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzY2N2VlYSIvPgo8cGF0aCBkPSJNOCAxMkgxNlYyMEg4VjEyWiIgZmlsbD0id2hpdGUiLz4KPHA+CiJhdGggZD0iTTIwIDhIMjhWMTZIMjBWOFoiIGZpbGw9IndoaXRlIi8+CjxwYXRoIGQ9Ik0yMCAyMEgyOFYyOEgyMFYyMFoiIGZpbGw9IndoaXRlIiBmaWxsLW9wYWNpdHk9IjAuNyIvPgo8L3N2Zz4=">
+    
+    <!-- React & Material-UI -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/@mui/material@5.14.20/umd/material-ui.production.min.js"></script>
+    <script src="https://unpkg.com/@emotion/react@11.11.1/dist/emotion-react.umd.min.js"></script>
+    <script src="https://unpkg.com/@emotion/styled@11.11.0/dist/emotion-styled.umd.min.js"></script>
+    <script src="https://unpkg.com/xrpl@4.2.5/build/xrpl-latest.js"></script>
+    
+    <!-- Material Icons & Fonts -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap">
+    
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        #root {
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useRef } = React;
+        const { 
+            ThemeProvider, 
+            createTheme,
+            CssBaseline,
+            Box,
+            Container,
+            Paper,
+            Stepper,
+            Step,
+            StepLabel,
+            Typography,
+            Button,
+            TextField,
+            Select,
+            MenuItem,
+            FormControl,
+            InputLabel,
+            Checkbox,
+            Card,
+            CardContent,
+            Alert,
+            AlertTitle,
+            Chip,
+            Grid,
+            LinearProgress,
+            Dialog,
+            DialogTitle,
+            DialogContent,
+            DialogActions,
+            Snackbar,
+            IconButton,
+            List,
+            ListItem,
+            ListItemText,
+            CircularProgress,
+            Tabs,
+            Tab
+        } = MaterialUI;
+
+        // =====================================================
+        // SERVICES LAYER - BACKEND LOGIC
+        // =====================================================
+
+        class XRPLService {
+            constructor() {
+                this.client = null;
+                this.connectionStatus = 'disconnected';
+                this.retryAttempts = 0;
+                this.maxRetryAttempts = 3;
+                this.mainnetUrl = 'wss://xrplcluster.com';
+                this.explorerUrl = 'https://livenet.xrpl.org';
+            }
+
+            async getClient() {
+                if (this.client && this.client.isConnected()) {
+                    return this.client;
+                }
+
+                if (this.connectionStatus === 'connecting') {
+                    return new Promise((resolve, reject) => {
+                        const checkConnection = () => {
+                            if (this.client && this.client.isConnected()) {
+                                resolve(this.client);
+                            } else if (this.connectionStatus === 'error') {
+                                reject(new Error('Connection failed'));
+                            } else {
+                                setTimeout(checkConnection, 100);
+                            }
+                        };
+                        checkConnection();
+                    });
+                }
+
+                this.connectionStatus = 'connecting';
+
+                try {
+                    const newClient = new xrpl.Client(this.mainnetUrl);
+                    await newClient.connect();
+                    this.client = newClient;
+                    this.connectionStatus = 'connected';
+                    this.retryAttempts = 0;
+                    return newClient;
+                } catch (err) {
+                    this.connectionStatus = 'error';
+                    console.error('XRPL connection failed:', err);
+
+                    if (this.retryAttempts < this.maxRetryAttempts) {
+                        this.retryAttempts++;
+                        await new Promise(resolve => setTimeout(resolve, 2000 * this.retryAttempts));
+                        return this.getClient();
+                    }
+
+                    throw new Error(`Failed to connect after ${this.maxRetryAttempts} attempts: ${err.message}`);
+                }
+            }
+
+            async disconnect() {
+                if (this.client && this.client.isConnected()) {
+                    try {
+                        await this.client.disconnect();
+                    } catch (err) {
+                        console.warn('Error disconnecting client:', err);
+                    }
+                }
+                this.client = null;
+                this.connectionStatus = 'disconnected';
+            }
+
+            async getAccountInfo(address) {
+                const client = await this.getClient();
+                const response = await client.request({
+                    command: 'account_info',
+                    account: address,
+                    ledger_index: 'validated'
+                });
+                return response.result.account_data;
+            }
+
+            async submitTransaction(tx, wallet) {
+                const client = await this.getClient();
+                const prepared = await client.autofill(tx);
+                const signed = wallet.sign(prepared);
+                const result = await client.submitAndWait(signed.tx_blob);
+                return result;
+            }
+
+            async checkMPTAuthorization(holderAddress, mptIssuanceId) {
+                const client = await this.getClient();
+                try {
+                    const objects = await client.request({
+                        command: 'account_objects',
+                        account: holderAddress,
+                        type: 'MPToken'
+                    });
+                    return objects.result.account_objects.some(
+                        obj => obj.MPTokenIssuanceID === mptIssuanceId
+                    );
+                } catch (e) {
+                    return false;
+                }
+            }
+            
+            async getAllMPTokens(address) {
+                const client = await this.getClient();
+                try {
+                    const response = await client.request({
+                        command: 'account_objects',
+                        account: address,
+                        type: 'MPToken'
+                    });
+                    return response.result.account_objects || [];
+                } catch (e) {
+                    console.error('Error fetching MPTokens:', e);
+                    return [];
+                }
+            }
+            
+            async getMPTokenIssuances(issuerAddress) {
+                const client = await this.getClient();
+                try {
+                    const response = await client.request({
+                        command: 'account_objects',
+                        account: issuerAddress,
+                        type: 'MPTokenIssuance'
+                    });
+                    return response.result.account_objects || [];
+                } catch (e) {
+                    console.error('Error fetching MPTokenIssuances:', e);
+                    return [];
+                }
+            }
+
+            getConnectionStatus() {
+                return this.connectionStatus;
+            }
+
+            getExplorerUrl(txHash) {
+                return `${this.explorerUrl}/transactions/${txHash}`;
+            }
+        }
+
+        class SessionService {
+            constructor() {
+                this.storageKey = 'mpt-creator-session';
+                this.maxAge = 3600000; // 1 hour
+            }
+
+            saveSession(data) {
+                try {
+                    const sessionData = {
+                        ...data,
+                        timestamp: Date.now(),
+                        netlifyDeployment: true
+                    };
+
+                    const dataString = JSON.stringify(sessionData);
+                    if (dataString.length > 5000) {
+                        console.warn('Session data is large, consider reducing stored data');
+                    }
+
+                    localStorage.setItem(this.storageKey, dataString);
+                } catch (err) {
+                    console.warn('Failed to save session state:', err);
+                }
+            }
+
+            loadSession() {
+                try {
+                    const saved = localStorage.getItem(this.storageKey);
+                    if (saved) {
+                        const data = JSON.parse(saved);
+                        if (Date.now() - data.timestamp < this.maxAge) {
+                            return data;
+                        } else {
+                            this.clearSession();
+                        }
+                    }
+                } catch (err) {
+                    console.warn('Failed to load session state:', err);
+                    this.clearSession();
+                }
+                return null;
+            }
+
+            clearSession() {
+                localStorage.removeItem(this.storageKey);
+            }
+        }
+
+        class ValidationService {
+            validateSecretKey(secret) {
+                if (!secret) {
+                    return 'Secret key is required';
+                }
+                if (!secret.startsWith('s')) {
+                    return 'Secret key must start with "s"';
+                }
+                if (secret.length < 29 || secret.length > 35) {
+                    return 'Secret key must be 29-35 characters long';
+                }
+                // Basic format validation without expensive wallet creation
+                if (!/^s[A-Za-z0-9]+$/.test(secret)) {
+                    return 'Secret key contains invalid characters';
+                }
+                return null;
+            }
+
+            validateCurrencyCode(code) {
+                if (!code) return 'Currency code is required';
+                if (code.length < 3) return 'Currency code must be at least 3 characters';
+                if (code.length > 20) return 'Currency code cannot exceed 20 characters (XRPL limit)';
+                if (!/^[A-Z0-9]+$/.test(code)) return 'Currency code can only contain uppercase letters and numbers';
+                return null;
+            }
+
+            validateTokenName(name) {
+                if (!name) return 'Token name is required';
+                if (name.length < 2) return 'Token name must be at least 2 characters';
+                return null;
+            }
+
+            validateDescription(description) {
+                if (!description) return 'Description is required';
+                if (description.length < 10) return 'Description must be at least 10 characters';
+                return null;
+            }
+
+            validateAssetScale(scale) {
+                const num = parseInt(scale);
+                if (isNaN(num) || num < 0 || num > 15) {
+                    return 'Decimal places must be between 0 and 15 (XRPL maximum)';
+                }
+                return null;
+            }
+
+            validateTransferFee(fee) {
+                const num = parseInt(fee);
+                if (isNaN(num) || num < 0 || num > 50000) {
+                    return 'Transfer fee must be between 0% and 50% (XRPL maximum)';
+                }
+                return null;
+            }
+
+            validatePrerequisites(currentStep, state) {
+                if (currentStep >= 2 && !state.wallet) {
+                    throw new Error('Wallet not connected');
+                }
+                
+                if (currentStep >= 6 && !state.txState.createComplete) {
+                    throw new Error('Token creation not completed');
+                }
+                
+                if (currentStep >= 7 && !state.txState.mptIssuanceId) {
+                    throw new Error('MPT Issuance ID not available');
+                }
+                
+                if (currentStep >= 8 && !state.txState.authComplete) {
+                    throw new Error('Authorization not completed');
+                }
+                
+                return true;
+            }
+        }
+
+        class MetadataService {
+            buildMetadata(formData) {
+                const metadata = {
+                    c: formData.currencyCode,
+                    n: formData.name,
+                    d: formData.description
+                };
+
+                if (formData.iconUrl) metadata.i = formData.iconUrl;
+                if (formData.assetClass) metadata.cl = formData.assetClass;
+                if (formData.assetSubclass) metadata.cs = formData.assetSubclass;
+                if (formData.name) metadata.a = formData.name;
+
+                if (formData.weblinks.length > 0) {
+                    metadata.w = formData.weblinks
+                        .filter(link => link.url && link.title)
+                        .map(link => ({
+                            u: link.url,
+                            c: link.category,
+                            t: link.title
+                        }));
+                }
+
+                const jsonStr = JSON.stringify(metadata);
+                const encoder = new TextEncoder();
+                const bytes = encoder.encode(jsonStr);
+                const hexMetadata = Array.from(bytes)
+                    .map(b => b.toString(16).padStart(2, '0'))
+                    .join('')
+                    .toUpperCase();
+
+                if (hexMetadata.length > 2048) {
+                    throw new Error(`Metadata too large: ${hexMetadata.length / 2} bytes (max 1024 bytes)`);
+                }
+
+                return hexMetadata;
+            }
+
+            getAssetClasses() {
+                return [
+                    { value: 'rwa', label: 'Real World Asset (RWA)' },
+                    { value: 'stablecoin', label: 'Stablecoin' },
+                    { value: 'gaming', label: 'Gaming' },
+                    { value: 'defi', label: 'DeFi' },
+                    { value: 'utility', label: 'Utility' },
+                    { value: 'governance', label: 'Governance' },
+                    { value: 'nft', label: 'NFT/Collectible' },
+                    { value: 'other', label: 'Other' }
+                ];
+            }
+
+            getRWASubclasses() {
+                return [
+                    'private_credit', 'real_estate', 'equity', 'treasury', 'commodity',
+                    'art', 'intellectual_property', 'carbon_credit', 'other'
+                ];
+            }
+
+            getStablecoinSubclasses() {
+                return [
+                    'fiat_backed', 'crypto_backed', 'algorithmic', 'commodity_backed'
+                ];
+            }
+
+            getWeblinkCategories() {
+                return [
+                    { value: 'website', label: 'Official Website' },
+                    { value: 'docs', label: 'Documentation' },
+                    { value: 'whitepaper', label: 'Whitepaper' },
+                    { value: 'github', label: 'GitHub' },
+                    { value: 'twitter', label: 'Twitter/X' },
+                    { value: 'discord', label: 'Discord' },
+                    { value: 'telegram', label: 'Telegram' },
+                    { value: 'medium', label: 'Medium/Blog' }
+                ];
+            }
+        }
+
+        // Service instances
+        const xrplService = new XRPLService();
+        const sessionService = new SessionService();
+        const validationService = new ValidationService();
+        const metadataService = new MetadataService();
+
+        // =====================================================
+        // CUSTOM HOOKS
+        // =====================================================
+
+        function useXRPLConnection() {
+            const [connectionStatus, setConnectionStatus] = useState('disconnected');
+            const [retryCount, setRetryCount] = useState(0);
+
+            const connect = useCallback(async () => {
+                try {
+                    setConnectionStatus('connecting');
+                    await xrplService.getClient();
+                    setConnectionStatus('connected');
+                    setRetryCount(0);
+                } catch (error) {
+                    setConnectionStatus('error');
+                    setRetryCount(prev => prev + 1);
+                    throw error;
+                }
+            }, []);
+
+            const disconnect = useCallback(async () => {
+                await xrplService.disconnect();
+                setConnectionStatus('disconnected');
+            }, []);
+
+            useEffect(() => {
+                const interval = setInterval(() => {
+                    setConnectionStatus(xrplService.getConnectionStatus());
+                }, 1000);
+
+                return () => {
+                    clearInterval(interval);
+                    disconnect();
+                };
+            }, [disconnect]);
+
+            return { connectionStatus, retryCount, connect, disconnect };
+        }
+
+        function useSession() {
+            const [resumeData, setResumeData] = useState(null);
+
+            useEffect(() => {
+                const saved = sessionService.loadSession();
+                if (saved) {
+                    setResumeData(saved);
+                }
+            }, []);
+
+            const saveSession = useCallback((data) => {
+                sessionService.saveSession(data);
+            }, []);
+
+            const clearSession = useCallback(() => {
+                sessionService.clearSession();
+                setResumeData(null);
+            }, []);
+
+            return { resumeData, saveSession, clearSession };
+        }
+
+        function useFormValidation() {
+            const [errors, setErrors] = useState({});
+            const validationTimeouts = useRef({});
+
+            const validateField = useCallback((field, value, immediate = false) => {
+                // Clear existing timeout for this field
+                if (validationTimeouts.current[field]) {
+                    clearTimeout(validationTimeouts.current[field]);
+                }
+
+                const performValidation = () => {
+                    let error = null;
+
+                    switch (field) {
+                        case 'secretKey':
+                            error = validationService.validateSecretKey(value);
+                            break;
+                        case 'currencyCode':
+                            error = validationService.validateCurrencyCode(value);
+                            break;
+                        case 'name':
+                            error = validationService.validateTokenName(value);
+                            break;
+                        case 'description':
+                            error = validationService.validateDescription(value);
+                            break;
+                        case 'assetScale':
+                            error = validationService.validateAssetScale(value);
+                            break;
+                        case 'transferFee':
+                            error = validationService.validateTransferFee(value);
+                            break;
+                    }
+
+                    setErrors(prev => ({ ...prev, [field]: error }));
+                    return error === null;
+                };
+
+                if (immediate) {
+                    return performValidation();
+                } else {
+                    // Debounce validation to avoid interfering with typing
+                    validationTimeouts.current[field] = setTimeout(performValidation, 300);
+                    return true; // Assume valid during debounce
+                }
+            }, []);
+
+            const validateStep = useCallback((step, formData) => {
+                const stepErrors = {};
+
+                switch (step) {
+                    case 1:
+                        if (!validateField('secretKey', formData.secretKey, true)) {
+                            stepErrors.secretKey = validationService.validateSecretKey(formData.secretKey);
+                        }
+                        break;
+                    case 2:
+                        ['currencyCode', 'name', 'description'].forEach(field => {
+                            if (!validateField(field, formData[field], true)) {
+                                stepErrors[field] = validationService[`validate${field.charAt(0).toUpperCase() + field.slice(1)}`]?.(formData[field]);
+                            }
+                        });
+                        break;
+                    case 3:
+                        ['assetScale', 'transferFee'].forEach(field => {
+                            if (!validateField(field, formData[field], true)) {
+                                stepErrors[field] = validationService[`validate${field.charAt(0).toUpperCase() + field.slice(1)}`]?.(formData[field]);
+                            }
+                        });
+                        break;
+                }
+
+                setErrors(stepErrors);
+                return Object.keys(stepErrors).length === 0;
+            }, [validateField]);
+
+            const clearErrors = useCallback(() => {
+                setErrors({});
+            }, []);
+
+            return { errors, validateField, validateStep, clearErrors };
+        }
+
+        // =====================================================
+        // MATERIAL-UI THEME
+        // =====================================================
+
+        const theme = createTheme({
+            palette: {
+                primary: {
+                    main: '#667eea',
+                    light: '#9bb5ff',
+                    dark: '#2f4cb7',
+                    contrastText: '#ffffff'
+                },
+                secondary: {
+                    main: '#764ba2',
+                    light: '#a67cd4',
+                    dark: '#481c73',
+                    contrastText: '#ffffff'
+                },
+                success: {
+                    main: '#10b981',
+                    light: '#6ee7b7',
+                    dark: '#047857'
+                },
+                warning: {
+                    main: '#f59e0b',
+                    light: '#fbbf24',
+                    dark: '#d97706'
+                },
+                error: {
+                    main: '#ef4444',
+                    light: '#f87171',
+                    dark: '#dc2626'
+                },
+                background: {
+                    default: '#f8fafc',
+                    paper: '#ffffff'
+                }
+            },
+            typography: {
+                fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+                h4: { fontWeight: 600, fontSize: '2rem' },
+                h5: { fontWeight: 600, fontSize: '1.5rem' },
+                h6: { fontWeight: 600, fontSize: '1.25rem' }
+            },
+            shape: { borderRadius: 12 },
+            spacing: 8,
+            components: {
+                MuiButton: {
+                    styleOverrides: {
+                        root: {
+                            textTransform: 'none',
+                            fontWeight: 600,
+                            borderRadius: '12px',
+                            padding: '12px 24px'
+                        }
+                    }
+                },
+                MuiTextField: {
+                    styleOverrides: {
+                        root: { marginBottom: '16px' }
+                    }
+                },
+                MuiCard: {
+                    styleOverrides: {
+                        root: {
+                            borderRadius: '16px',
+                            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+                        }
+                    }
+                },
+                MuiStepper: {
+                    styleOverrides: {
+                        root: { backgroundColor: 'transparent' }
+                    }
+                }
+            }
+        });
+
+        // =====================================================
+        // STEP COMPONENTS (EXTRACTED TO PREVENT RE-RENDER ISSUES)
+        // =====================================================
+
+        const WalletConnectionStep = React.memo(({ 
+            formData, 
+            setFormData, 
+            validateField, 
+            errors, 
+            setError, 
+            onConnect, 
+            connectionStatus, 
+            loading,
+            wallet,
+            accountInfo,
+            warnings,
+            onContinue
+        }) => {
+            const [secretKey, setSecretKey] = useState(formData.secretKey);
+            const [connecting, setConnecting] = useState(false);
+
+            const handleConnect = useCallback(async () => {
+                if (!validateField('secretKey', secretKey, true)) {
+                    return;
+                }
+
+                setConnecting(true);
+                setError('');
+
+                try {
+                    await onConnect(secretKey);
+                    setFormData(prev => ({ ...prev, secretKey }));
+                } catch (error) {
+                    setError(error.message);
+                } finally {
+                    setConnecting(false);
+                }
+            }, [secretKey, validateField, setError, onConnect, setFormData]);
+
+            const handleSecretKeyChange = useCallback((e) => {
+                setSecretKey(e.target.value);
+            }, []);
+
+            const isConnected = wallet && accountInfo;
+
+            return (
+                <Card>
+                    <CardContent>
+                        <Typography variant="h6" gutterBottom>
+                            Connect Your Wallet
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                            Enter your XRPL secret key to create and authorize your MPT token.
+                        </Typography>
+
+                        {!isConnected && (
+                            <>
+                                <Alert severity="error" sx={{ mb: 2 }}>
+                                    <AlertTitle>🔒 SECURITY REMINDER</AlertTitle>
+                                    <Typography variant="body2">
+                                        <strong>ONLY USE TEST WALLETS!</strong> This tool does not encrypt your private keys.
+                                        Never enter real wallet seed phrases. Use only disposable test wallets for experimentation.
+                                    </Typography>
+                                </Alert>
+
+                                <Alert severity="warning" sx={{ mb: 3 }}>
+                                    <Typography variant="body2">
+                                        ⚠️ <strong>XRPL MAINNET - YOU'RE USING REAL MONEY</strong>
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ mt: 1 }}>
+                                        • You need at least 1.3 XRP in your wallet<br/>
+                                        • Creating a token costs real XRP (fees and reserves)<br/>
+                                        • Most token settings cannot be changed after creation<br/>
+                                        • <strong>This tool connects to XRPL mainnet for testing MPT functionality</strong>
+                                    </Typography>
+                                </Alert>
+
+                                <TextField
+                                    fullWidth
+                                    type="password"
+                                    label="Secret Key *"
+                                    value={secretKey}
+                                    onChange={handleSecretKeyChange}
+                                    error={!!errors.secretKey}
+                                    helperText={errors.secretKey || "Your XRPL secret key (starts with 's')"}
+                                    placeholder="sXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                                    sx={{ mb: 2 }}
+                                    inputProps={{
+                                        'aria-label': 'XRPL Secret Key',
+                                        'aria-describedby': 'secret-key-help'
+                                    }}
+                                />
+
+                                <Button
+                                    fullWidth
+                                    variant="contained"
+                                    onClick={handleConnect}
+                                    disabled={!secretKey || connecting || loading}
+                                    sx={{ py: 1.5 }}
+                                >
+                                    {connecting ? (
+                                        <>
+                                            <CircularProgress size={20} sx={{ mr: 1 }} />
+                                            Connecting...
+                                        </>
+                                    ) : '🚀 Connect to Mainnet'}
+                                </Button>
+                            </>
+                        )}
+
+                        {isConnected && (
+                            <>
+                                <Alert severity="success" sx={{ mb: 3 }}>
+                                    <Typography variant="body2">
+                                        ✅ <strong>Wallet Connected Successfully!</strong>
+                                    </Typography>
+                                </Alert>
+
+                                <Card variant="outlined" sx={{ mb: 3 }}>
+                                    <CardContent>
+                                        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                                            Connected Address
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all', mb: 2 }}>
+                                            {wallet.address}
+                                        </Typography>
+
+                                        <Grid container spacing={2}>
+                                            <Grid item xs={4}>
+                                                <Card variant="outlined" sx={{ bgcolor: 'success.light', color: 'success.contrastText' }}>
+                                                    <CardContent sx={{ textAlign: 'center', py: 1 }}>
+                                                        <Typography variant="caption" display="block">XRP Balance</Typography>
+                                                        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                                                            {(parseFloat(accountInfo.Balance) / 1000000).toFixed(6)}
+                                                        </Typography>
+                                                    </CardContent>
+                                                </Card>
+                                            </Grid>
+                                            <Grid item xs={4}>
+                                                <Card variant="outlined">
+                                                    <CardContent sx={{ textAlign: 'center', py: 1 }}>
+                                                        <Typography variant="caption" display="block">Sequence</Typography>
+                                                        <Typography variant="h6">{accountInfo.Sequence}</Typography>
+                                                    </CardContent>
+                                                </Card>
+                                            </Grid>
+                                            <Grid item xs={4}>
+                                                <Card variant="outlined">
+                                                    <CardContent sx={{ textAlign: 'center', py: 1 }}>
+                                                        <Typography variant="caption" display="block">Owner Count</Typography>
+                                                        <Typography variant="h6">{accountInfo.OwnerCount || 0}</Typography>
+                                                    </CardContent>
+                                                </Card>
+                                            </Grid>
+                                        </Grid>
+                                    </CardContent>
+                                </Card>
+
+                                {warnings && warnings.length > 0 && (
+                                    <Box sx={{ mb: 3 }}>
+                                        {warnings.map((warning, index) => (
+                                            <Alert 
+                                                key={index}
+                                                severity={warning.type === 'error' ? 'error' : 'warning'} 
+                                                sx={{ mb: 1 }}
+                                            >
+                                                {warning.message}
+                                            </Alert>
+                                        ))}
+                                    </Box>
+                                )}
+
+                                <Button
+                                    fullWidth
+                                    variant="contained"
+                                    onClick={onContinue}
+                                    sx={{ py: 1.5 }}
+                                    startIcon={<span className="material-icons">arrow_forward</span>}
+                                >
+                                    Continue to Token Information
+                                </Button>
+                            </>
+                        )}
+                    </CardContent>
+                </Card>
+            );
+        });
+
+        const TokenInfoStep = React.memo(({ 
+            formData, 
+            setFormData, 
+            validateField, 
+            errors 
+        }) => {
+            const handleFieldChange = useCallback((field, value) => {
+                setFormData(prev => ({ ...prev, [field]: value }));
+                validateField(field, value);
+            }, [setFormData, validateField]);
+
+            const handleCurrencyCodeChange = useCallback((e) => {
+                const value = e.target.value.toUpperCase();
+                setFormData(prev => ({ ...prev, currencyCode: value }));
+                validateField('currencyCode', value);
+            }, [setFormData, validateField]);
+
+            return (
+                <Card>
+                    <CardContent>
+                        <Typography variant="h6" gutterBottom>
+                            Token Information
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                            Define your token's basic properties and identification.
+                        </Typography>
+                        
+                        <Grid container spacing={3}>
+                            <Grid item xs={12} md={6}>
+                                <TextField
+                                    fullWidth
+                                    label="Token Symbol *"
+                                    value={formData.currencyCode}
+                                    onChange={handleCurrencyCodeChange}
+                                    error={!!errors.currencyCode}
+                                    helperText={errors.currencyCode || "3-20 characters (like USD, GOLD, MYTOKEN, VERYLONGTOKEN)"}
+                                    placeholder="MYTOKEN"
+                                    inputProps={{ maxLength: 20 }}
+                                />
+                            </Grid>
+                            <Grid item xs={12} md={6}>
+                                <TextField
+                                    fullWidth
+                                    label="Token Name *"
+                                    value={formData.name}
+                                    onChange={(e) => handleFieldChange('name', e.target.value)}
+                                    error={!!errors.name}
+                                    helperText={errors.name || "A descriptive name for your token"}
+                                    placeholder="My Awesome Token"
+                                />
+                            </Grid>
+                            <Grid item xs={12}>
+                                <TextField
+                                    fullWidth
+                                    multiline
+                                    rows={3}
+                                    label="Token Description"
+                                    value={formData.description}
+                                    onChange={(e) => handleFieldChange('description', e.target.value)}
+                                    error={!!errors.description}
+                                    helperText={errors.description || "Describe your token's purpose and utility"}
+                                    placeholder="A revolutionary token for..."
+                                />
+                            </Grid>
+                        </Grid>
+                    </CardContent>
+                </Card>
+            );
+        });
+
+        const TokenIssuanceStep = React.memo(({ 
+            formData, 
+            setFormData, 
+            txState, 
+            setTxState, 
+            errors,
+            onIssueTokens,
+            onAuthorizeHolder,
+            loading,
+            setError,
+            showSnackbar
+        }) => {
+            const [authorizing, setAuthorizing] = useState(false);
+            const [issuing, setIssuing] = useState(false);
+
+            const handleAuthorizeHolder = useCallback(async () => {
+                if (!formData.holderSecretKey) return;
+                
+                setAuthorizing(true);
+                try {
+                    await onAuthorizeHolder(formData.holderSecretKey);
+                } catch (error) {
+                    console.error('Authorization failed:', error);
+                    const errorMsg = error.message || 'Authorization failed';
+                    setError(errorMsg);
+                    showSnackbar(errorMsg, 'error');
+                } finally {
+                    setAuthorizing(false);
+                }
+            }, [formData.holderSecretKey, onAuthorizeHolder]);
+
+            const handleIssueTokens = useCallback(async () => {
+                if (!formData.issueAmount) return;
+                
+                setIssuing(true);
+                try {
+                    await onIssueTokens(formData.issueAmount);
+                } catch (error) {
+                    console.error('Token issuance failed:', error);
+                    const errorMsg = error.message || 'Token issuance failed';
+                    setError(errorMsg);
+                    showSnackbar(errorMsg, 'error');
+                } finally {
+                    setIssuing(false);
+                }
+            }, [formData.issueAmount, onIssueTokens]);
+
+            const handleAmountChange = useCallback((e) => {
+                setFormData(prev => ({ ...prev, issueAmount: e.target.value }));
+            }, [setFormData]);
+
+            const handleHolderSecretKeyChange = useCallback((e) => {
+                setFormData(prev => ({ ...prev, holderSecretKey: e.target.value }));
+            }, [setFormData]);
+
+            return (
+                <Card>
+                    <CardContent>
+                        <Typography variant="h6" gutterBottom>
+                            Issue Tokens to Holder
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                            Complete the two-step token issuance process.
+                        </Typography>
+
+                        <Grid container spacing={3}>
+                            <Grid item xs={12} md={6}>
+                                <Card variant="outlined">
+                                    <CardContent>
+                                        <Typography variant="h6" gutterBottom>
+                                            Step 1: Authorize Holder
+                                        </Typography>
+                                        <TextField
+                                            fullWidth
+                                            type="password"
+                                            label="Holder Secret Key"
+                                            value={formData.holderSecretKey}
+                                            onChange={handleHolderSecretKeyChange}
+                                            placeholder="sXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                                            helperText="Secret key of wallet that will receive tokens"
+                                            disabled={authorizing || loading}
+                                            sx={{ mb: 2 }}
+                                        />
+                                        <Button
+                                            fullWidth
+                                            variant="contained"
+                                            onClick={handleAuthorizeHolder}
+                                            disabled={!formData.holderSecretKey || authorizing || formData.holderAuthorized}
+                                        >
+                                            {authorizing ? (
+                                                <>
+                                                    <CircularProgress size={20} sx={{ mr: 1 }} />
+                                                    Authorizing...
+                                                </>
+                                            ) : formData.holderAuthorized ? 'Authorized ✓' : 'Authorize Holder'}
+                                        </Button>
+                                    </CardContent>
+                                </Card>
+                            </Grid>
+
+                            <Grid item xs={12} md={6}>
+                                <Card variant="outlined" sx={{
+                                    opacity: formData.holderAuthorized ? 1 : 0.5,
+                                    pointerEvents: formData.holderAuthorized ? 'auto' : 'none'
+                                }}>
+                                    <CardContent>
+                                        <Typography variant="h6" gutterBottom>
+                                            Step 2: Issue Tokens
+                                        </Typography>
+                                        {!formData.holderAuthorized ? (
+                                            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                                                ⚠️ Complete Step 1 first to unlock this step
+                                            </Typography>
+                                        ) : (
+                                            <>
+                                                <TextField
+                                                    fullWidth
+                                                    label="Amount to Issue"
+                                                    value={formData.issueAmount}
+                                                    onChange={handleAmountChange}
+                                                    placeholder="1000"
+                                                    helperText={
+                                                        formData.assetScale === '2' 
+                                                            ? 'Enter the amount you want to issue (e.g., 1000 = 1000.00 tokens with 2 decimals)'
+                                                            : formData.assetScale === '0'
+                                                            ? 'Enter the amount you want to issue (e.g., 1000 = 1000 tokens, no decimals)'
+                                                            : `Enter the amount you want to issue (${formData.assetScale} decimal places will be supported)`
+                                                    }
+                                                    disabled={issuing || loading}
+                                                    sx={{ mb: 2 }}
+                                                />
+                                                <Button
+                                                    fullWidth
+                                                    variant="contained"
+                                                    onClick={handleIssueTokens}
+                                                    disabled={!formData.issueAmount || issuing || !formData.holderAuthorized}
+                                                >
+                                                    {issuing ? (
+                                                        <>
+                                                            <CircularProgress size={20} sx={{ mr: 1 }} />
+                                                            Issuing...
+                                                        </>
+                                                    ) : 'Issue Tokens'}
+                                                </Button>
+                                            </>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            </Grid>
+                        </Grid>
+                    </CardContent>
+                </Card>
+            );
+        });
+
+        const CompletionStep = React.memo(({ 
+            txState,
+            formData,
+            xrplService,
+            onResetForm,
+            copyToClipboard
+        }) => {
+            const [checkingBalance, setCheckingBalance] = useState(false);
+            
+            const handleCheckBalance = useCallback(async () => {
+                setCheckingBalance(true);
+                try {
+                    const client = await xrplService.getClient();
+                    const response = await client.request({
+                        command: 'account_objects',
+                        account: txState.holderAddress,
+                        type: 'MPToken'
+                    });
+                    
+                    const mptToken = response.result.account_objects.find(
+                        obj => obj.MPTokenIssuanceID === txState.mptIssuanceId
+                    );
+                    
+                    if (mptToken) {
+                        const rawAmount = mptToken.MPTAmount;
+                        const scale = parseInt(formData.assetScale || '0');
+                        const displayAmount = scale > 0 
+                            ? (parseFloat(rawAmount) / Math.pow(10, scale)).toFixed(scale)
+                            : rawAmount;
+                        
+                        alert(`✅ CONFIRMED!\n\n` +
+                              `Holder has tokens:\n\n` +
+                              `Raw: ${rawAmount} units\n` +
+                              `Display: ${displayAmount}\n` +
+                              `Token: ${formData.currencyCode}\n\n` +
+                              `The tokens ARE in the wallet!`);
+                    } else {
+                        alert('❌ No tokens found. This is unexpected!');
+                    }
+                } catch (error) {
+                    alert('Failed to check balance: ' + error.message);
+                } finally {
+                    setCheckingBalance(false);
+                }
+            }, [txState, formData, xrplService]);
+
+            return (
+                <Card>
+                    <CardContent sx={{ textAlign: 'center', py: 6 }}>
+                        {/* Success Header */}
+                        <Box sx={{ mb: 4 }}>
+                            <Box sx={{ 
+                                width: 120, height: 120, 
+                                bgcolor: 'success.main', 
+                                borderRadius: '50%', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                mx: 'auto', mb: 3,
+                                boxShadow: '0 8px 24px rgba(76, 175, 80, 0.3)'
+                            }}>
+                                <Typography variant="h1" sx={{ fontSize: '4rem' }}>🎉</Typography>
+                            </Box>
+                            
+                            <Typography variant="h3" gutterBottom sx={{ fontWeight: 'bold', color: 'success.main' }}>
+                                All Done!
+                            </Typography>
+                            
+                            <Typography variant="h6" color="text.secondary">
+                                Your MPT tokens are issued and delivered
+                            </Typography>
+                        </Box>
+
+                        {/* Success Checklist */}
+                        <Alert severity="success" sx={{ mb: 4, textAlign: 'left' }}>
+                            <AlertTitle sx={{ fontWeight: 'bold' }}>✅ Complete Process:</AlertTitle>
+                            <Box component="ul" sx={{ m: 0, pl: 2 }}>
+                                <li>Token definition created ✓</li>
+                                <li>Holder authorized ✓</li>
+                                <li>Tokens issued and delivered ✓</li>
+                            </Box>
+                        </Alert>
+
+                        {/* Transaction Details with Copy Buttons */}
+                        <Box sx={{ mb: 4 }}>
+                            <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
+                                Transaction Details
+                            </Typography>
+                            
+                            {/* Token ID */}
+                            {txState.mptIssuanceId && (
+                                <Card variant="outlined" sx={{ mb: 2, bgcolor: 'primary.light', border: 2, borderColor: 'primary.main' }}>
+                                    <CardContent>
+                                        <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                                            <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+                                                🪙 Token ID (MPTokenIssuanceID)
+                                            </Typography>
+                                            <IconButton 
+                                                size="small" 
+                                                onClick={() => copyToClipboard(txState.mptIssuanceId, 'Token ID')}
+                                                color="primary"
+                                            >
+                                                <span className="material-icons">content_copy</span>
+                                            </IconButton>
+                                        </Box>
+                                        <Typography 
+                                            variant="body2" 
+                                            sx={{ 
+                                                fontFamily: 'monospace', 
+                                                wordBreak: 'break-all',
+                                                bgcolor: 'background.paper',
+                                                p: 2,
+                                                borderRadius: 1
+                                            }}
+                                        >
+                                            {txState.mptIssuanceId}
+                                        </Typography>
+                                    </CardContent>
+                                </Card>
+                            )}
+
+                            <Grid container spacing={2}>
+
+                                {/* Authorization Transaction */}
+                                {txState.authTxHash && (
+                                    <Grid item xs={12} md={6}>
+                                        <Card variant="outlined">
+                                            <CardContent>
+                                                <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                                                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                                                        🔐 Authorization Transaction
+                                                    </Typography>
+                                                    <IconButton 
+                                                        size="small" 
+                                                        onClick={() => copyToClipboard(txState.authTxHash, 'Auth hash')}
+                                                    >
+                                                        <span className="material-icons" style={{ fontSize: 16 }}>content_copy</span>
+                                                    </IconButton>
+                                                </Box>
+                                                <Typography 
+                                                    variant="body2" 
+                                                    sx={{ 
+                                                        fontFamily: 'monospace', 
+                                                        wordBreak: 'break-all',
+                                                        fontSize: '0.75rem',
+                                                        bgcolor: 'grey.50',
+                                                        p: 1,
+                                                        borderRadius: 1
+                                                    }}
+                                                >
+                                                    {txState.authTxHash}
+                                                </Typography>
+                                            </CardContent>
+                                        </Card>
+                                    </Grid>
+                                )}
+
+                                {/* Payment Transaction */}
+                                {txState.paymentTxHash && (
+                                    <Grid item xs={12} md={6}>
+                                        <Card variant="outlined">
+                                            <CardContent>
+                                                <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                                                    <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                                                        💰 Payment Transaction
+                                                    </Typography>
+                                                    <IconButton 
+                                                        size="small" 
+                                                        onClick={() => copyToClipboard(txState.paymentTxHash, 'Payment hash')}
+                                                    >
+                                                        <span className="material-icons" style={{ fontSize: 16 }}>content_copy</span>
+                                                    </IconButton>
+                                                </Box>
+                                                <Typography 
+                                                    variant="body2" 
+                                                    sx={{ 
+                                                        fontFamily: 'monospace', 
+                                                        wordBreak: 'break-all',
+                                                        fontSize: '0.75rem',
+                                                        bgcolor: 'grey.50',
+                                                        p: 1,
+                                                        borderRadius: 1
+                                                    }}
+                                                >
+                                                    {txState.paymentTxHash}
+                                                </Typography>
+                                            </CardContent>
+                                        </Card>
+                                    </Grid>
+                                )}
+                            </Grid>
+                        </Box>
+
+                        {/* Summary Table */}
+                        <Card variant="outlined" sx={{ mb: 4, bgcolor: 'grey.50' }}>
+                            <CardContent>
+                                <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
+                                    Summary
+                                </Typography>
+                                <Grid container spacing={2}>
+                                    <Grid item xs={6}>
+                                        <Typography variant="body2" color="text.secondary">Issued To:</Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                        <Box display="flex" alignItems="center" gap={1}>
+                                            <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem', wordBreak: 'break-all' }}>
+                                                {txState.holderAddress}
+                                            </Typography>
+                                            <IconButton 
+                                                size="small" 
+                                                onClick={() => copyToClipboard(txState.holderAddress, 'Holder address')}
+                                            >
+                                                <span className="material-icons" style={{ fontSize: 14 }}>content_copy</span>
+                                            </IconButton>
+                                        </Box>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                        <Typography variant="body2" color="text.secondary">Amount:</Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                                            {formData.issueAmount} units
+                                        </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                        <Typography variant="body2" color="text.secondary">Token:</Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                                            {formData.currencyCode}
+                                        </Typography>
+                                    </Grid>
+                                </Grid>
+                            </CardContent>
+                        </Card>
+
+                        {/* Balance Checker */}
+                        <Alert severity="warning" sx={{ mb: 4, textAlign: 'left' }}>
+                            <AlertTitle sx={{ fontWeight: 'bold' }}>💡 Can't see tokens in wallet app?</AlertTitle>
+                            <Typography variant="body2" mb={2}>
+                                MPTs are new! Many wallets don't show them yet. Use this button to verify:
+                            </Typography>
+                            <Button
+                                fullWidth
+                                variant="contained"
+                                color="warning"
+                                onClick={handleCheckBalance}
+                                disabled={checkingBalance}
+                                startIcon={checkingBalance ? <CircularProgress size={20} /> : <span className="material-icons">search</span>}
+                            >
+                                {checkingBalance ? 'Checking...' : '🔍 Check Holder Balance'}
+                            </Button>
+                        </Alert>
+
+                        {/* Action Buttons */}
+                        <Box display="flex" gap={2} justifyContent="center" mb={3}>
+                            {txState.paymentTxHash && (
+                                <Button
+                                    variant="contained"
+                                    href={xrplService.getExplorerUrl(txState.paymentTxHash)}
+                                    target="_blank"
+                                    startIcon={<span className="material-icons">payment</span>}
+                                >
+                                    View Payment
+                                </Button>
+                            )}
+                            {txState.createTxHash && (
+                                <Button
+                                    variant="outlined"
+                                    href={xrplService.getExplorerUrl(txState.createTxHash)}
+                                    target="_blank"
+                                    startIcon={<span className="material-icons">token</span>}
+                                >
+                                    View Creation
+                                </Button>
+                            )}
+                        </Box>
+
+                        {/* Create Another */}
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            size="large"
+                            onClick={onResetForm}
+                            startIcon={<span className="material-icons">add_circle</span>}
+                            sx={{ minWidth: 250 }}
+                        >
+                            Create Another Token
+                        </Button>
+                    </CardContent>
+                </Card>
+            );
+        });
+
+        // =====================================================
+        // MPTOKEN MANAGER COMPONENT
+        // =====================================================
+        
+        const MPTokenManager = React.memo(({ wallet, xrplService, showSnackbar }) => {
+            const [open, setOpen] = useState(false);
+            const [loading, setLoading] = useState(false);
+            const [holderTokens, setHolderTokens] = useState([]);
+            const [issuerTokens, setIssuerTokens] = useState([]);
+            const [selectedTab, setSelectedTab] = useState(0);
+            const [holderAddress, setHolderAddress] = useState('');
+            
+            const loadTokens = useCallback(async () => {
+                if (!wallet) return;
+                
+                setLoading(true);
+                try {
+                    // Load tokens where this wallet is the issuer
+                    const issuances = await xrplService.getMPTokenIssuances(wallet.address);
+                    setIssuerTokens(issuances);
+                    
+                    // Load tokens where this wallet is a holder
+                    const holdings = await xrplService.getAllMPTokens(wallet.address);
+                    setHolderTokens(holdings);
+                    
+                    showSnackbar(`Found ${issuances.length} issued tokens and ${holdings.length} held tokens`, 'info');
+                } catch (err) {
+                    console.error('Error loading tokens:', err);
+                    showSnackbar('Failed to load tokens: ' + err.message, 'error');
+                } finally {
+                    setLoading(false);
+                }
+            }, [wallet, xrplService, showSnackbar]);
+            
+            const checkHolderTokens = useCallback(async () => {
+                if (!holderAddress) {
+                    showSnackbar('Please enter a holder address', 'warning');
+                    return;
+                }
+                
+                setLoading(true);
+                try {
+                    const tokens = await xrplService.getAllMPTokens(holderAddress);
+                    setHolderTokens(tokens);
+                    showSnackbar(`Found ${tokens.length} tokens for ${holderAddress}`, 'info');
+                } catch (err) {
+                    console.error('Error loading holder tokens:', err);
+                    showSnackbar('Failed to load tokens: ' + err.message, 'error');
+                } finally {
+                    setLoading(false);
+                }
+            }, [holderAddress, xrplService, showSnackbar]);
+            
+            const handleUnauthorize = useCallback(async (mptIssuanceId, holderAddr) => {
+                if (!wallet) return;
+                
+                try {
+                    setLoading(true);
+                    const tx = {
+                        TransactionType: 'MPTokenAuthorize',
+                        Account: holderAddr || wallet.address,
+                        MPTokenIssuanceID: mptIssuanceId,
+                        Flags: 1 // Unauthorize
+                    };
+                    
+                    // If unauthorizing for another holder, they need to sign
+                    if (holderAddr && holderAddr !== wallet.address) {
+                        showSnackbar('The holder must unauthorize from their own wallet', 'warning');
+                        return;
+                    }
+                    
+                    const result = await xrplService.submitTransaction(tx, wallet);
+                    
+                    if (result.result.meta.TransactionResult === 'tesSUCCESS') {
+                        showSnackbar('Successfully removed authorization!', 'success');
+                        await loadTokens();
+                    } else {
+                        throw new Error(result.result.meta.TransactionResult);
+                    }
+                } catch (err) {
+                    console.error('Unauthorize error:', err);
+                    showSnackbar('Failed to unauthorize: ' + err.message, 'error');
+                } finally {
+                    setLoading(false);
+                }
+            }, [wallet, xrplService, showSnackbar, loadTokens]);
+            
+            useEffect(() => {
+                if (open && wallet) {
+                    loadTokens();
+                }
+            }, [open, wallet, loadTokens]);
+            
+            return (
+                <>
+                    <Button
+                        variant="contained"
+                        color="secondary"
+                        onClick={() => setOpen(true)}
+                        startIcon={<span className="material-icons">manage_accounts</span>}
+                        sx={{ 
+                            position: 'fixed', 
+                            bottom: 20, 
+                            right: 20, 
+                            zIndex: 1000,
+                            boxShadow: 3
+                        }}
+                    >
+                        MPT Manager
+                    </Button>
+                    
+                    <Dialog open={open} onClose={() => setOpen(false)} maxWidth="md" fullWidth>
+                        <DialogTitle>
+                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Typography variant="h6">MPToken Manager</Typography>
+                                <IconButton onClick={() => setOpen(false)}>
+                                    <span className="material-icons">close</span>
+                                </IconButton>
+                            </Box>
+                        </DialogTitle>
+                        
+                        <DialogContent>
+                            <Tabs value={selectedTab} onChange={(e, v) => setSelectedTab(v)} sx={{ mb: 2 }}>
+                                <Tab label="My Holdings" />
+                                <Tab label="My Issuances" />
+                                <Tab label="Check Holder" />
+                            </Tabs>
+                            
+                            {selectedTab === 0 && (
+                                <Box>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                        Tokens you are authorized to hold:
+                                    </Typography>
+                                    {loading ? (
+                                        <Box display="flex" justifyContent="center" p={3}>
+                                            <CircularProgress />
+                                        </Box>
+                                    ) : holderTokens.length === 0 ? (
+                                        <Alert severity="info">No MPTokens found in your wallet</Alert>
+                                    ) : (
+                                        <List>
+                                            {holderTokens.map((token, idx) => (
+                                                <ListItem key={idx} divider>
+                                                    <ListItemText
+                                                        primary={`MPT ID: ${token.MPTokenIssuanceID}`}
+                                                        secondary={
+                                                            <Box>
+                                                                <Typography variant="caption" display="block">
+                                                                    Balance: {token.MPTAmount || '0'}
+                                                                </Typography>
+                                                                {token.MPTAmount === '0' && (
+                                                                    <Typography variant="caption" color="warning.main">
+                                                                        ⚠️ Zero balance - can be removed
+                                                                    </Typography>
+                                                                )}
+                                                            </Box>
+                                                        }
+                                                    />
+                                                    {token.MPTAmount === '0' && (
+                                                        <Button
+                                                            size="small"
+                                                            color="error"
+                                                            onClick={() => handleUnauthorize(token.MPTokenIssuanceID)}
+                                                            disabled={loading}
+                                                        >
+                                                            Remove
+                                                        </Button>
+                                                    )}
+                                                </ListItem>
+                                            ))}
+                                        </List>
+                                    )}
+                                </Box>
+                            )}
+                            
+                            {selectedTab === 1 && (
+                                <Box>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                        Tokens you have created:
+                                    </Typography>
+                                    {loading ? (
+                                        <Box display="flex" justifyContent="center" p={3}>
+                                            <CircularProgress />
+                                        </Box>
+                                    ) : issuerTokens.length === 0 ? (
+                                        <Alert severity="info">No MPTokens issued by your wallet</Alert>
+                                    ) : (
+                                        <List>
+                                            {issuerTokens.map((token, idx) => (
+                                                <ListItem key={idx} divider>
+                                                    <ListItemText
+                                                        primary={`MPT ID: ${token.index || token.MPTokenIssuanceID}`}
+                                                        secondary={
+                                                            <Box>
+                                                                <Typography variant="caption" display="block">
+                                                                    Max Supply: {token.MaximumAmount || 'Unlimited'}
+                                                                </Typography>
+                                                                <Typography variant="caption" display="block">
+                                                                    Scale: {token.AssetScale || '0'}
+                                                                </Typography>
+                                                            </Box>
+                                                        }
+                                                    />
+                                                </ListItem>
+                                            ))}
+                                        </List>
+                                    )}
+                                </Box>
+                            )}
+                            
+                            {selectedTab === 2 && (
+                                <Box>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                        Check what tokens a specific address holds:
+                                    </Typography>
+                                    <Box display="flex" gap={1} mb={2}>
+                                        <TextField
+                                            fullWidth
+                                            label="Holder Address"
+                                            value={holderAddress}
+                                            onChange={(e) => setHolderAddress(e.target.value)}
+                                            placeholder="rXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                                            size="small"
+                                        />
+                                        <Button
+                                            variant="contained"
+                                            onClick={checkHolderTokens}
+                                            disabled={loading || !holderAddress}
+                                        >
+                                            Check
+                                        </Button>
+                                    </Box>
+                                    {holderTokens.length > 0 && (
+                                        <List>
+                                            {holderTokens.map((token, idx) => (
+                                                <ListItem key={idx} divider>
+                                                    <ListItemText
+                                                        primary={`MPT ID: ${token.MPTokenIssuanceID}`}
+                                                        secondary={`Balance: ${token.MPTAmount || '0'}`}
+                                                    />
+                                                </ListItem>
+                                            ))}
+                                        </List>
+                                    )}
+                                </Box>
+                            )}
+                        </DialogContent>
+                        
+                        <DialogActions>
+                            <Button onClick={() => loadTokens()} disabled={loading}>
+                                Refresh
+                            </Button>
+                            <Button onClick={() => setOpen(false)}>
+                                Close
+                            </Button>
+                        </DialogActions>
+                    </Dialog>
+                </>
+            );
+        });
+
+        // =====================================================
+        // UTILITY COMPONENTS
+        // =====================================================
+
+        function ConnectionStatus({ status, onReconnect, showReconnect }) {
+            const getStatusColor = () => {
+                switch (status) {
+                    case 'connected': return 'success';
+                    case 'connecting': return 'warning';
+                    case 'error': return 'error';
+                    default: return 'default';
+                }
+            };
+
+            const getStatusText = () => {
+                switch (status) {
+                    case 'connected': return 'Connected';
+                    case 'connecting': return 'Connecting';
+                    case 'error': return 'Error';
+                    default: return 'Disconnected';
+                }
+            };
+
+            return (
+                <Box display="flex" alignItems="center" gap={1}>
+                    <Chip 
+                        size="small"
+                        color={getStatusColor()}
+                        label={getStatusText()}
+                        variant="filled"
+                    />
+                    {showReconnect && status === 'disconnected' && (
+                        <Button 
+                            size="small" 
+                            variant="outlined" 
+                            onClick={onReconnect}
+                            startIcon={<span className="material-icons" style={{ fontSize: 16 }}>refresh</span>}
+                        >
+                            Reconnect
+                        </Button>
+                    )}
+                </Box>
+            );
+        }
+
+        function ResumeSessionDialog({ open, onResume, onStartFresh }) {
+            return (
+                <Dialog open={open} maxWidth="sm" fullWidth>
+                    <DialogTitle>
+                        <Box display="flex" alignItems="center" gap={1}>
+                            <span>📋</span>
+                            Resume Previous Session?
+                        </Box>
+                    </DialogTitle>
+                    <DialogContent>
+                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                            Found saved progress from a previous session. Would you like to resume where you left off or start fresh?
+                        </Typography>
+                        <Alert severity="info" sx={{ mt: 2 }}>
+                            <Typography variant="body2">
+                                <strong>Note:</strong> You'll need to reconnect your wallet after resuming. Your progress and form data will be restored.
+                            </Typography>
+                        </Alert>
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={onStartFresh} color="inherit">
+                            Start Fresh
+                        </Button>
+                        <Button onClick={onResume} variant="contained">
+                            Resume & Reconnect
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+            );
+        }
+
+        function MPTCreatorApp() {
+            // Main application state
+            const [activeStep, setActiveStep] = useState(0);
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState('');
+            const [snackbarOpen, setSnackbarOpen] = useState(false);
+            const [snackbarMessage, setSnackbarMessage] = useState('');
+            const [snackbarSeverity, setSnackbarSeverity] = useState('info');
+
+            // Hooks
+            const { connectionStatus, connect, disconnect } = useXRPLConnection();
+            const { resumeData, saveSession, clearSession } = useSession();
+            const { errors, validateField, validateStep, clearErrors } = useFormValidation();
+
+            // State management
+            const [wallet, setWallet] = useState(null);
+            const [accountInfo, setAccountInfo] = useState(null);
+            const [warnings, setWarnings] = useState([]);
+            
+            // Transaction state
+            const [txState, setTxState] = useState({
+                createComplete: false,
+                authComplete: false,
+                paymentComplete: false,
+                createTxHash: null,
+                authTxHash: null,
+                paymentTxHash: null,
+                mptIssuanceId: null,
+                holderAddress: null
+            });
+
+            // Form data
+            const [formData, setFormData] = useState({
+                secretKey: '',
+                currencyCode: '',
+                name: '',
+                description: '',
+                assetScale: '0',
+                maxAmount: '9223372036854775807',
+                transferFee: '0',
+                canLock: false,
+                requireAuth: false,
+                canEscrow: false,
+                canTrade: true,
+                canTransfer: true,
+                canClawback: false,
+                assetClass: '',
+                assetSubclass: '',
+                iconUrl: '',
+                weblinks: [],
+                holderSecretKey: '',
+                holderAddress: '',
+                holderAuthorized: false,
+                issueAmount: ''
+            });
+
+            // Step definitions
+            const steps = [
+                'Connect Wallet',
+                'Token Information',
+                'Token Configuration', 
+                'Metadata (Optional)',
+                'Review & Create',
+                'Token Created',
+                'Issue Tokens',
+                'Complete'
+            ];
+
+            // Resume session dialog
+            const [showResumeDialog, setShowResumeDialog] = useState(false);
+            const [needsReconnection, setNeedsReconnection] = useState(false);
+
+            useEffect(() => {
+                if (resumeData) {
+                    setShowResumeDialog(true);
+                }
+            }, [resumeData]);
+
+            // Session persistence - debounced to avoid excessive saves during typing
+            const formDataRef = useRef(formData);
+            formDataRef.current = formData;
+
+            useEffect(() => {
+                if (activeStep > 0) {
+                    const timeoutId = setTimeout(() => {
+                        saveSession({
+                            activeStep,
+                            wallet: wallet ? { address: wallet.address } : null,
+                            accountInfo,
+                            txState,
+                            formData: formDataRef.current
+                        });
+                    }, 2000); // Increased debounce time to reduce interference
+
+                    return () => clearTimeout(timeoutId);
+                }
+            }, [activeStep, txState, wallet, accountInfo, saveSession]);
+
+            // Utility functions
+            const showSnackbar = useCallback((message, severity = 'info') => {
+                setSnackbarMessage(message);
+                setSnackbarSeverity(severity);
+                setSnackbarOpen(true);
+            }, []);
+
+            const copyToClipboard = useCallback((text, label) => {
+                navigator.clipboard.writeText(text).then(() => {
+                    showSnackbar(`${label} copied to clipboard!`, 'success');
+                }).catch(err => {
+                    showSnackbar('Failed to copy', 'error');
+                    console.error('Copy failed:', err);
+                });
+            }, [showSnackbar]);
+
+            const handleError = useCallback((error, context = '') => {
+                console.error(`Error in ${context}:`, error);
+                setError(error.message || 'An unexpected error occurred');
+                showSnackbar(error.message || 'An unexpected error occurred', 'error');
+            }, [showSnackbar]);
+
+            const resetForm = useCallback(async () => {
+                setActiveStep(0);
+                setWallet(null);
+                setAccountInfo(null);
+                setWarnings([]);
+                setError('');
+                setTxState({
+                    createComplete: false,
+                    authComplete: false,
+                    paymentComplete: false,
+                    createTxHash: null,
+                    authTxHash: null,
+                    paymentTxHash: null,
+                    mptIssuanceId: null,
+                    holderAddress: null
+                });
+                setFormData({
+                    secretKey: '',
+                    currencyCode: '',
+                    name: '',
+                    description: '',
+                    assetScale: '0',
+                    maxAmount: '9223372036854775807',
+                    transferFee: '0',
+                    canLock: false,
+                    requireAuth: false,
+                    canEscrow: false,
+                    canTrade: true,
+                    canTransfer: true,
+                    canClawback: false,
+                    assetClass: '',
+                    assetSubclass: '',
+                    iconUrl: '',
+                    weblinks: [],
+                    holderSecretKey: '',
+                    holderAddress: '',
+                    holderAuthorized: false,
+                    issueAmount: ''
+                });
+                clearSession();
+                await disconnect();
+            }, [clearSession, disconnect]);
+
+            const handleResumeSession = useCallback(() => {
+                const savedData = resumeData;
+                if (savedData) {
+                    setActiveStep(savedData.activeStep);
+                    if (savedData.accountInfo) setAccountInfo(savedData.accountInfo);
+                    if (savedData.txState) setTxState(savedData.txState);
+                    if (savedData.formData) setFormData(savedData.formData);
+                    // Check if we need reconnection (saved session has wallet info but we're not connected)
+                    if (savedData.wallet && !wallet) {
+                        setNeedsReconnection(true);
+                        showSnackbar('Session resumed! Please reconnect your wallet to continue.', 'info');
+                    } else {
+                        showSnackbar('Session resumed successfully!', 'success');
+                    }
+                }
+                setShowResumeDialog(false);
+            }, [resumeData, wallet, showSnackbar]);
+
+            const handleStartFresh = useCallback(() => {
+                clearSession();
+                setShowResumeDialog(false);
+                showSnackbar('Starting fresh session', 'info');
+            }, [clearSession, showSnackbar]);
+
+            // Step handlers
+            const handleNext = useCallback(async () => {
+                try {
+                    validationService.validatePrerequisites(activeStep + 1, { wallet, txState });
+                    
+                    if (!validateStep(activeStep, formData)) {
+                        showSnackbar('Please fix validation errors', 'error');
+                        return;
+                    }
+
+                    setActiveStep(prev => prev + 1);
+                    clearErrors();
+                } catch (error) {
+                    handleError(error, 'step navigation');
+                }
+            }, [activeStep, formData, wallet, txState, validateStep, clearErrors, showSnackbar, handleError]);
+
+            const handleBack = useCallback(() => {
+                setActiveStep(prev => prev - 1);
+                clearErrors();
+            }, [clearErrors]);
+
+            // =====================================================
+            // STEP HANDLERS AND UTILITIES  
+            // =====================================================
+
+            // (WalletConnectionStep component defined above, outside main component)
+
+            // (TokenInfoStep component defined above, outside main component)
+
+            // Step 3: Token Configuration
+            const TokenConfigStep = () => {
+                const handleFieldChange = (field, value) => {
+                    setFormData(prev => ({ ...prev, [field]: value }));
+                    validateField(field, value);
+                };
+
+                const handleCapabilityChange = (capability) => {
+                    setFormData(prev => ({ ...prev, [capability]: !prev[capability] }));
+                };
+
+                const capabilities = [
+                    { 
+                        key: 'canLock', 
+                        label: '🔒 Freeze Tokens', 
+                        description: 'You can freeze tokens in user wallets if needed',
+                        recommended: false 
+                    },
+                    { 
+                        key: 'requireAuth', 
+                        label: '✅ Pre-approve Holders', 
+                        description: 'People need your permission before they can hold this token',
+                        recommended: false 
+                    },
+                    { 
+                        key: 'canEscrow', 
+                        label: '⏰ Schedule Releases', 
+                        description: 'Lock tokens until a future date (great for vesting)',
+                        recommended: true 
+                    },
+                    { 
+                        key: 'canTrade', 
+                        label: '📈 Exchange Trading', 
+                        description: 'Let people buy and sell on decentralized exchanges',
+                        recommended: true 
+                    },
+                    { 
+                        key: 'canTransfer', 
+                        label: '💸 Send to Anyone', 
+                        description: 'People can send tokens to each other freely',
+                        recommended: true 
+                    },
+                    { 
+                        key: 'canClawback', 
+                        label: '↩️ Reverse Transfers', 
+                        description: 'You can take tokens back from users if necessary',
+                        recommended: false 
+                    }
+                ];
+
+                return (
+                    <Box>
+                        <Typography variant="h6" gutterBottom>
+                            Token Settings
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                            Configure your token's technical parameters and trading fees.
+                        </Typography>
+                        
+                        <Grid container spacing={3}>
+                            <Grid item xs={12} md={4}>
+                                <TextField
+                                    fullWidth
+                                    type="number"
+                                    label="Decimal Places"
+                                    value={formData.assetScale}
+                                    onChange={(e) => handleFieldChange('assetScale', e.target.value)}
+                                    error={!!errors.assetScale}
+                                    helperText={errors.assetScale || "0-15 maximum (0=whole, 2=cents, 6=micro)"}
+                                    inputProps={{ min: 0, max: 15, step: 1 }}
+                                />
+                            </Grid>
+                            <Grid item xs={12} md={4}>
+                                <TextField
+                                    fullWidth
+                                    label="Maximum Supply"
+                                    value={formData.maxAmount}
+                                    onChange={(e) => handleFieldChange('maxAmount', e.target.value)}
+                                    helperText="Total tokens that can ever exist"
+                                    sx={{ fontFamily: 'monospace' }}
+                                />
+                            </Grid>
+                            <Grid item xs={12} md={4}>
+                                <TextField
+                                    fullWidth
+                                    type="number"
+                                    label="Trading Fee (%)"
+                                    value={formData.transferFee ? (formData.transferFee / 1000).toFixed(3) : '0'}
+                                    onChange={(e) => {
+                                        const percentage = parseFloat(e.target.value) || 0;
+                                        const basisPoints = Math.round(percentage * 1000);
+                                        handleFieldChange('transferFee', basisPoints.toString());
+                                    }}
+                                    error={!!errors.transferFee}
+                                    helperText={errors.transferFee || "0-50% maximum (0%=no fee, 0.1%=small fee, 5%=high fee)"}
+                                    inputProps={{ min: 0, max: 50, step: 0.001 }}
+                                />
+                            </Grid>
+                        </Grid>
+
+                        <Box sx={{ mt: 4 }}>
+                            <Typography variant="h6" gutterBottom>
+                                Special Features & Permissions
+                            </Typography>
+                            <Alert severity="warning" sx={{ mb: 3 }}>
+                                <AlertTitle>⚠️ Choose Carefully!</AlertTitle>
+                                These settings cannot be changed after you create your token.
+                            </Alert>
+
+                            <Grid container spacing={2}>
+                                {capabilities.map((capability) => (
+                                    <Grid item xs={12} md={6} key={capability.key}>
+                                        <Card 
+                                            variant="outlined" 
+                                            sx={{ 
+                                                p: 2, 
+                                                cursor: 'pointer',
+                                                border: formData[capability.key] ? 2 : 1,
+                                                borderColor: formData[capability.key] ? 'primary.main' : 'divider',
+                                                bgcolor: formData[capability.key] ? 'primary.light' : 'background.paper',
+                                                '&:hover': {
+                                                    bgcolor: formData[capability.key] ? 'primary.light' : 'action.hover'
+                                                }
+                                            }}
+                                            onClick={() => handleCapabilityChange(capability.key)}
+                                        >
+                                            <Box display="flex" alignItems="center" justifyContent="space-between">
+                                                <Box display="flex" alignItems="center" gap={1}>
+                                                    <Checkbox
+                                                        checked={formData[capability.key]}
+                                                        onChange={() => handleCapabilityChange(capability.key)}
+                                                        color="primary"
+                                                    />
+                                                    <Box>
+                                                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                                                            {capability.label}
+                                                        </Typography>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            {capability.description}
+                                                        </Typography>
+                                                    </Box>
+                                                </Box>
+                                                {capability.recommended && (
+                                                    <Chip 
+                                                        label="Rec" 
+                                                        size="small" 
+                                                        color="success" 
+                                                        variant="outlined"
+                                                    />
+                                                )}
+                                            </Box>
+                                        </Card>
+                                    </Grid>
+                                ))}
+                            </Grid>
+                        </Box>
+                    </Box>
+                );
+            };
+
+            // Step 4: Metadata (Optional)
+            const MetadataStep = () => {
+                const handleFieldChange = (field, value) => {
+                    setFormData(prev => ({ ...prev, [field]: value }));
+                };
+
+                const handleWeblinkChange = (index, field, value) => {
+                    const newWeblinks = [...formData.weblinks];
+                    newWeblinks[index][field] = value;
+                    setFormData(prev => ({ ...prev, weblinks: newWeblinks }));
+                };
+
+                const addWeblink = () => {
+                    setFormData(prev => ({
+                        ...prev,
+                        weblinks: [...prev.weblinks, { url: '', category: 'website', title: '' }]
+                    }));
+                };
+
+                const removeWeblink = (index) => {
+                    setFormData(prev => ({
+                        ...prev,
+                        weblinks: prev.weblinks.filter((_, i) => i !== index)
+                    }));
+                };
+
+                const getSubclasses = () => {
+                    if (formData.assetClass === 'rwa') return metadataService.getRWASubclasses();
+                    if (formData.assetClass === 'stablecoin') return metadataService.getStablecoinSubclasses();
+                    return [];
+                };
+
+                return (
+                    <Box>
+                        <Typography variant="h6" gutterBottom>
+                            Additional Information (Optional)
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                            Add details to help people understand and trust your token.
+                        </Typography>
+
+                        <Grid container spacing={3}>
+                            <Grid item xs={12} md={6}>
+                                <FormControl fullWidth>
+                                    <InputLabel>What type of token is this?</InputLabel>
+                                    <Select
+                                        value={formData.assetClass}
+                                        label="What type of token is this?"
+                                        onChange={(e) => handleFieldChange('assetClass', e.target.value)}
+                                    >
+                                        <MenuItem value="">Select category...</MenuItem>
+                                        {metadataService.getAssetClasses().map(cls => (
+                                            <MenuItem key={cls.value} value={cls.value}>
+                                                {cls.label}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            </Grid>
+
+                            {getSubclasses().length > 0 && (
+                                <Grid item xs={12} md={6}>
+                                    <FormControl fullWidth>
+                                        <InputLabel>More specifically...</InputLabel>
+                                        <Select
+                                            value={formData.assetSubclass}
+                                            label="More specifically..."
+                                            onChange={(e) => handleFieldChange('assetSubclass', e.target.value)}
+                                        >
+                                            <MenuItem value="">Select subclass...</MenuItem>
+                                            {getSubclasses().map(sub => (
+                                                <MenuItem key={sub} value={sub}>
+                                                    {sub.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </FormControl>
+                                </Grid>
+                            )}
+
+                            <Grid item xs={12}>
+                                <TextField
+                                    fullWidth
+                                    label="Token Image (Logo URL)"
+                                    value={formData.iconUrl}
+                                    onChange={(e) => handleFieldChange('iconUrl', e.target.value)}
+                                    placeholder="https://example.com/my-token-logo.png"
+                                    helperText="Link to your token's logo image (PNG, JPG, or SVG)"
+                                />
+                            </Grid>
+                        </Grid>
+
+                        <Box sx={{ mt: 4 }}>
+                            <Typography variant="h6" gutterBottom>
+                                Important Links (Website, Social Media, etc.)
+                            </Typography>
+
+                            {formData.weblinks.map((link, idx) => (
+                                <Card key={idx} variant="outlined" sx={{ mb: 2, p: 2 }}>
+                                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                                        <Typography variant="subtitle2">Link {idx + 1}</Typography>
+                                        <IconButton 
+                                            onClick={() => removeWeblink(idx)} 
+                                            color="error" 
+                                            size="small"
+                                        >
+                                            <span className="material-icons">delete</span>
+                                        </IconButton>
+                                    </Box>
+                                    <Grid container spacing={2}>
+                                        <Grid item xs={12} md={4}>
+                                            <FormControl fullWidth size="small">
+                                                <InputLabel>Category</InputLabel>
+                                                <Select
+                                                    value={link.category}
+                                                    label="Category"
+                                                    onChange={(e) => handleWeblinkChange(idx, 'category', e.target.value)}
+                                                >
+                                                    {metadataService.getWeblinkCategories().map(cat => (
+                                                        <MenuItem key={cat.value} value={cat.value}>
+                                                            {cat.label}
+                                                        </MenuItem>
+                                                    ))}
+                                                </Select>
+                                            </FormControl>
+                                        </Grid>
+                                        <Grid item xs={12} md={4}>
+                                            <TextField
+                                                fullWidth
+                                                size="small"
+                                                label="Link Title"
+                                                value={link.title}
+                                                onChange={(e) => handleWeblinkChange(idx, 'title', e.target.value)}
+                                                placeholder="Link title"
+                                            />
+                                        </Grid>
+                                        <Grid item xs={12} md={4}>
+                                            <TextField
+                                                fullWidth
+                                                size="small"
+                                                label="URL"
+                                                value={link.url}
+                                                onChange={(e) => handleWeblinkChange(idx, 'url', e.target.value)}
+                                                placeholder="https://..."
+                                            />
+                                        </Grid>
+                                    </Grid>
+                                </Card>
+                            ))}
+
+                            <Button
+                                variant="outlined"
+                                onClick={addWeblink}
+                                startIcon={<span className="material-icons">add</span>}
+                                sx={{ mt: 2 }}
+                            >
+                                Add Another Link
+                            </Button>
+                        </Box>
+                    </Box>
+                );
+            };
+
+            // Step 5: Review & Create
+            const ReviewStep = () => {
+                const [creating, setCreating] = useState(false);
+
+                const createMPT = async () => {
+                    const hasError = warnings.some(w => w.type === 'error');
+                    if (hasError) {
+                        showSnackbar('Cannot create MPT: Insufficient XRP balance', 'error');
+                        return;
+                    }
+
+                    setCreating(true);
+                    setError('');
+
+                    try {
+                        let flags = 0;
+                        if (formData.canLock) flags |= 0x0002;
+                        if (formData.requireAuth) flags |= 0x0004;
+                        if (formData.canEscrow) flags |= 0x0008;
+                        if (formData.canTrade) flags |= 0x0010;
+                        if (formData.canTransfer) flags |= 0x0020;
+                        if (formData.canClawback) flags |= 0x0040;
+
+                        const metadata = metadataService.buildMetadata(formData);
+
+                        const tx = {
+                            TransactionType: 'MPTokenIssuanceCreate',
+                            Account: wallet.address,
+                            AssetScale: parseInt(formData.assetScale),
+                            MaximumAmount: formData.maxAmount,
+                            TransferFee: parseInt(formData.transferFee),
+                            Flags: flags,
+                            MPTokenMetadata: metadata
+                        };
+
+                        const result = await xrplService.submitTransaction(tx, wallet);
+                        
+                        console.log('MPTokenIssuanceCreate result:', result);
+                        console.log('Transaction metadata:', result.result.meta);
+
+                        if (result.result.meta.TransactionResult === 'tesSUCCESS') {
+                            // Extract MPTokenIssuanceID from the created nodes
+                            let mptIssuanceId = null;
+                            
+                            // Check if mpt_issuance_id exists in meta
+                            if (result.result.meta.mpt_issuance_id) {
+                                mptIssuanceId = result.result.meta.mpt_issuance_id;
+                            } else if (result.result.meta.CreatedNodes) {
+                                // Look for MPTokenIssuance object in CreatedNodes
+                                for (const node of result.result.meta.CreatedNodes) {
+                                    if (node.CreatedNode && node.CreatedNode.LedgerEntryType === 'MPTokenIssuance') {
+                                        mptIssuanceId = node.CreatedNode.LedgerIndex;
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            // If still not found, compute it from issuer address and sequence
+                            // MPTokenIssuanceID = 32-bit sequence (4 bytes) + 160-bit AccountID (20 bytes)
+                            if (!mptIssuanceId && result.result.Sequence) {
+                                // Convert sequence to 32-bit hex (4 bytes, big-endian)
+                                const sequenceHex = result.result.Sequence.toString(16).toUpperCase().padStart(8, '0');
+                                // Decode the account address to get the 20-byte AccountID
+                                const issuerAccountID = xrpl.decodeAccountID(wallet.address).toString('hex').toUpperCase();
+                                // Concatenate sequence (4 bytes) + AccountID (20 bytes) = 24 bytes (192 bits)
+                                mptIssuanceId = sequenceHex + issuerAccountID;
+                            }
+                            
+                            console.log('Extracted MPTokenIssuanceID:', mptIssuanceId);
+                            
+                            const newTxState = {
+                                ...txState,
+                                createComplete: true,
+                                createTxHash: result.result.hash,
+                                mptIssuanceId: mptIssuanceId
+                            };
+                            setTxState(newTxState);
+
+                            showSnackbar('Token created successfully!', 'success');
+                            setActiveStep(5);
+                        } else {
+                            throw new Error('Transaction failed: ' + result.result.meta.TransactionResult);
+                        }
+
+                    } catch (err) {
+                        handleError(err, 'MPT creation');
+                    } finally {
+                        setCreating(false);
+                    }
+                };
+
+                return (
+                    <Box>
+                        <Alert severity="info" sx={{ mb: 3 }}>
+                            <AlertTitle>🔴 Ready to create on the LIVE network</AlertTitle>
+                            <Typography variant="body2">
+                                Double-check everything below. Most settings are permanent!
+                            </Typography>
+                        </Alert>
+
+                        <Grid container spacing={3}>
+                            <Grid item xs={12} md={6}>
+                                <Card variant="outlined">
+                                    <CardContent>
+                                        <Typography variant="h6" gutterBottom>Token Details</Typography>
+                                        <List dense>
+                                            <ListItem>
+                                                <ListItemText primary="Symbol" secondary={formData.currencyCode} />
+                                            </ListItem>
+                                            <ListItem>
+                                                <ListItemText primary="Name" secondary={formData.name} />
+                                            </ListItem>
+                                            <ListItem>
+                                                <ListItemText primary="Description" secondary={formData.description.substring(0, 100) + '...'} />
+                                            </ListItem>
+                                        </List>
+                                    </CardContent>
+                                </Card>
+                            </Grid>
+
+                            <Grid item xs={12} md={6}>
+                                <Card variant="outlined">
+                                    <CardContent>
+                                        <Typography variant="h6" gutterBottom>Settings</Typography>
+                                        <List dense>
+                                            <ListItem>
+                                                <ListItemText primary="Decimals" secondary={formData.assetScale} />
+                                            </ListItem>
+                                            <ListItem>
+                                                <ListItemText primary="Max Supply" secondary={formData.maxAmount} />
+                                            </ListItem>
+                                            <ListItem>
+                                                <ListItemText primary="Trading Fee" secondary={`${formData.transferFee} (${(parseInt(formData.transferFee) * 0.001).toFixed(3)}%)`} />
+                                            </ListItem>
+                                        </List>
+                                    </CardContent>
+                                </Card>
+                            </Grid>
+
+                            <Grid item xs={12}>
+                                <Card variant="outlined">
+                                    <CardContent>
+                                        <Typography variant="h6" gutterBottom>Features Enabled</Typography>
+                                        <Box display="flex" flexWrap="wrap" gap={1}>
+                                            {formData.canLock && <Chip label="🔒 Lock" size="small" />}
+                                            {formData.requireAuth && <Chip label="✅ Auth" size="small" />}
+                                            {formData.canEscrow && <Chip label="⏰ Escrow" size="small" />}
+                                            {formData.canTrade && <Chip label="📈 Trade" size="small" />}
+                                            {formData.canTransfer && <Chip label="💸 Transfer" size="small" />}
+                                            {formData.canClawback && <Chip label="↩️ Clawback" size="small" />}
+                                            {!formData.canLock && !formData.requireAuth && !formData.canEscrow && 
+                                             !formData.canTrade && !formData.canTransfer && !formData.canClawback && (
+                                                <Typography variant="body2" color="text.secondary">
+                                                    No additional capabilities
+                                                </Typography>
+                                            )}
+                                        </Box>
+                                    </CardContent>
+                                </Card>
+                            </Grid>
+                        </Grid>
+
+                        <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
+                            <Button
+                                variant="contained"
+                                color="success"
+                                size="large"
+                                onClick={createMPT}
+                                disabled={creating}
+                                startIcon={creating ? <CircularProgress size={20} /> : <span className="material-icons">check</span>}
+                                sx={{ minWidth: 200 }}
+                            >
+                                {creating ? 'Creating Your Token...' : '✓ Create My Token'}
+                            </Button>
+                        </Box>
+                    </Box>
+                );
+            };
+
+            // Step 6: Token Created
+            const TokenCreatedStep = () => {
+                return (
+                    <Box textAlign="center">
+                        <Box sx={{ mb: 4 }}>
+                            <Box 
+                                sx={{ 
+                                    width: 80, 
+                                    height: 80, 
+                                    bgcolor: 'success.light', 
+                                    borderRadius: '50%', 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justifyContent: 'center', 
+                                    mx: 'auto', 
+                                    mb: 2 
+                                }}
+                            >
+                                <span className="material-icons" style={{ fontSize: 40, color: 'white' }}>check</span>
+                            </Box>
+                            <Typography variant="h4" gutterBottom>
+                                Token Definition Created!
+                            </Typography>
+                            <Typography variant="body1" color="text.secondary">
+                                Your MPT is defined, but no tokens exist yet
+                            </Typography>
+                        </Box>
+
+                        {(txState.mptIssuanceId) && (
+                            <Card variant="outlined" sx={{ mb: 3, bgcolor: 'primary.light' }}>
+                                <CardContent>
+                                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                                        Your Token ID
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                                        {txState.mptIssuanceId}
+                                    </Typography>
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        <Alert severity="info" sx={{ mb: 4 }}>
+                            <AlertTitle>📌 What Just Happened?</AlertTitle>
+                            <Box component="div">
+                                <Typography variant="body2">✅ Token definition created (the "machine")</Typography>
+                                <Typography variant="body2">❌ Zero tokens minted (nothing issued yet)</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 'bold', mt: 1 }}>
+                                    Next: Actually create (mint) the tokens!
+                                </Typography>
+                            </Box>
+                        </Alert>
+
+                        <Box display="flex" gap={2} justifyContent="center">
+                            <Button
+                                variant="contained"
+                                color="success"
+                                size="large"
+                                onClick={() => setActiveStep(6)}
+                                startIcon={<span className="material-icons">arrow_forward</span>}
+                            >
+                                → Issue Tokens Now
+                            </Button>
+                            <Button
+                                variant="outlined"
+                                size="large"
+                                onClick={resetForm}
+                            >
+                                Done (Issue Later)
+                            </Button>
+                        </Box>
+                    </Box>
+                );
+            };
+
+            // (TokenIssuanceStep component defined above, outside main component)
+
+            // (CompletionStep component defined above, outside main component)
+
+            // Wallet connection function
+            const connectToWallet = useCallback(async (secretKey) => {
+                const w = xrpl.Wallet.fromSeed(secretKey);
+                setWallet(w);
+                
+                await connect();
+                const info = await xrplService.getAccountInfo(w.address);
+                setAccountInfo(info);
+
+                // Check reserves and set warnings
+                const balance = parseFloat(info.Balance) / 1000000;
+                const baseReserve = 1;
+                const ownerReserve = 0.2;
+                const ownerCount = info.OwnerCount || 0;
+                const requiredReserve = baseReserve + (ownerCount * ownerReserve);
+                const totalNeeded = requiredReserve + ownerReserve + 0.1;
+
+                const newWarnings = [];
+
+                if (balance < totalNeeded) {
+                    newWarnings.push({
+                        type: 'error',
+                        message: `Insufficient XRP. Need ${totalNeeded.toFixed(2)} XRP, have ${balance.toFixed(6)} XRP. Please add ${(totalNeeded - balance).toFixed(6)} XRP.`
+                    });
+                }
+
+                if (!info.Domain) {
+                    newWarnings.push({
+                        type: 'warning',
+                        message: 'Domain field not set. Recommended for issuer verification and trust.'
+                    });
+                }
+
+                setWarnings(newWarnings);
+                return w;
+            }, [connect, setWallet, setAccountInfo, setWarnings]);
+
+            // Handler for wallet connection
+            const handleConnectWallet = useCallback(async (secretKey) => {
+                const newWallet = await connectToWallet(secretKey);
+                showSnackbar('Wallet connected successfully!', 'success');
+                return newWallet;
+            }, [connectToWallet, showSnackbar]);
+
+            // Handler for continuing from wallet connection
+            const handleContinueFromWallet = useCallback(() => {
+                setActiveStep(1);
+                showSnackbar('Proceeding to token information...', 'info');
+            }, [showSnackbar]);
+
+            // Handler for holder authorization
+            const handleAuthorizeHolder = useCallback(async (holderSecretKey) => {
+                const holderWallet = xrpl.Wallet.fromSeed(holderSecretKey);
+                
+                if (holderWallet.address === wallet.address) {
+                    throw new Error('Holder wallet MUST be different from issuer wallet!');
+                }
+
+                // Check if already authorized
+                const mptId = txState.mptIssuanceId;
+                
+                console.log('Authorizing holder with MPTokenIssuanceID:', mptId);
+                
+                if (!mptId) {
+                    throw new Error('MPTokenIssuanceID is missing! Token creation may have failed.');
+                }
+                
+                const alreadyAuthorized = await xrplService.checkMPTAuthorization(holderWallet.address, mptId);
+                
+                if (alreadyAuthorized) {
+                    const newTxState = {
+                        ...txState,
+                        authComplete: true,
+                        holderAddress: holderWallet.address
+                    };
+                    setTxState(newTxState);
+                    setFormData(prev => ({
+                        ...prev,
+                        holderAddress: holderWallet.address,
+                        holderAuthorized: true
+                    }));
+                    showSnackbar('Already authorized!', 'success');
+                    return;
+                }
+
+                const authTx = {
+                    TransactionType: 'MPTokenAuthorize',
+                    Account: holderWallet.address,
+                    MPTokenIssuanceID: mptId
+                };
+                
+                console.log('MPTokenAuthorize transaction:', authTx);
+
+                const result = await xrplService.submitTransaction(authTx, holderWallet);
+                
+                console.log('MPTokenAuthorize result:', result);
+                
+                if (result.result.meta.TransactionResult === 'tesSUCCESS') {
+                    // Double-check the authorization exists on ledger
+                    showSnackbar('Authorization successful! Verifying on ledger...', 'info');
+                    
+                    // Wait a moment for ledger close
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    
+                    // Verify the MPToken object was created
+                    try {
+                        const verifyAuth = await xrplService.checkMPTAuthorization(holderWallet.address, mptId);
+                        if (!verifyAuth) {
+                            throw new Error('Authorization not found on ledger after success. Please try again.');
+                        }
+                        console.log('Authorization verified on ledger for holder:', holderWallet.address);
+                    } catch (err) {
+                        console.error('Authorization verification failed:', err);
+                        throw new Error('Failed to verify authorization on ledger. Please try again.');
+                    }
+                    
+                    const newTxState = {
+                        ...txState,
+                        authComplete: true,
+                        authTxHash: result.result.hash,
+                        holderAddress: holderWallet.address
+                    };
+                    setTxState(newTxState);
+                    
+                    setFormData(prev => ({
+                        ...prev,
+                        holderAddress: holderWallet.address,
+                        holderAuthorized: true
+                    }));
+                    
+                    showSnackbar('Authorization successful!', 'success');
+                } else {
+                    throw new Error('Authorization failed: ' + result.result.meta.TransactionResult);
+                }
+            }, [wallet, txState, setTxState, setFormData, showSnackbar]);
+
+            // Handler for token issuance
+            const handleIssueTokens = useCallback(async (issueAmount) => {
+                console.log('handleIssueTokens called with:', { issueAmount, mptIssuanceId: txState.mptIssuanceId });
+                
+                if (!txState.mptIssuanceId) {
+                    throw new Error('MPTokenIssuanceID is missing! Please ensure the token was created successfully.');
+                }
+                
+                // Convert user input to raw amount based on scale
+                // If user enters 1 with scale 2, we want to send 100 (1.00)
+                // If user enters 1000 with scale 2, we want to send 100000 (1000.00)
+                const scale = parseInt(formData.assetScale || '0');
+                const rawAmount = Math.round(parseFloat(issueAmount) * Math.pow(10, scale)).toString();
+                
+                console.log('Amount conversion:', { 
+                    userInput: issueAmount, 
+                    scale: scale, 
+                    rawAmount: rawAmount,
+                    displayValue: `${issueAmount} tokens`
+                });
+                
+                const paymentTx = {
+                    TransactionType: 'Payment',
+                    Account: wallet.address,
+                    Destination: formData.holderAddress || txState.holderAddress,
+                    Amount: {
+                        mpt_issuance_id: txState.mptIssuanceId,
+                        value: rawAmount
+                    }
+                };
+                
+                console.log('Payment transaction:', JSON.stringify(paymentTx, null, 2));
+
+                const result = await xrplService.submitTransaction(paymentTx, wallet);
+                
+                if (result.result.meta.TransactionResult === 'tesSUCCESS') {
+                    const newTxState = {
+                        ...txState,
+                        paymentComplete: true,
+                        paymentTxHash: result.result.hash
+                    };
+                    setTxState(newTxState);
+                    
+                    showSnackbar('Tokens issued successfully!', 'success');
+                    setActiveStep(7);
+                } else {
+                    throw new Error('Payment failed: ' + result.result.meta.TransactionResult);
+                }
+            }, [wallet, formData.holderAddress, txState, setTxState, showSnackbar, setActiveStep]);
+
+            // Handler for resetting form to create another token
+            const handleResetForm = useCallback(() => {
+                setActiveStep(0);
+                setFormData({
+                    secretKey: '',
+                    currencyCode: '',
+                    name: '',
+                    description: '',
+                    assetScale: '2',
+                    transferFee: '0',
+                    maxAmount: '',
+                    canLock: false,
+                    requireAuth: false,
+                    canEscrow: true,
+                    canTrade: true,
+                    holderSecretKey: '',
+                    issueAmount: '',
+                    holderAddress: '',
+                    holderAuthorized: false,
+                    iconUrl: '',
+                    assetClass: '',
+                    assetSubclass: '',
+                    weblinks: []
+                });
+                setTxState({
+                    createTxHash: null,
+                    mptIssuanceId: null,
+                    authComplete: false,
+                    authTxHash: null,
+                    paymentComplete: false,
+                    paymentTxHash: null,
+                    holderAddress: null
+                });
+                setWallet(null);
+                setAccountInfo(null);
+                setWarnings([]);
+                setError('');
+                clearSession();
+                showSnackbar('Ready to create a new token!', 'info');
+            }, [setActiveStep, setFormData, setTxState, setWallet, setAccountInfo, setWarnings, setError, clearSession, showSnackbar]);
+
+            // Render the appropriate step component
+            const renderStepContent = () => {
+                switch (activeStep) {
+                    case 0: return (
+                        <WalletConnectionStep 
+                            formData={formData}
+                            setFormData={setFormData}
+                            validateField={validateField}
+                            errors={errors}
+                            setError={setError}
+                            onConnect={handleConnectWallet}
+                            connectionStatus={connectionStatus}
+                            loading={loading}
+                            wallet={wallet}
+                            accountInfo={accountInfo}
+                            warnings={warnings}
+                            onContinue={handleContinueFromWallet}
+                        />
+                    );
+                    case 1: return (
+                        <TokenInfoStep 
+                            formData={formData}
+                            setFormData={setFormData}
+                            validateField={validateField}
+                            errors={errors}
+                        />
+                    );
+                    case 2: return <TokenConfigStep />;
+                    case 3: return <MetadataStep />;
+                    case 4: return <ReviewStep />;
+                    case 5: return <TokenCreatedStep />;
+                    case 6: return (
+                        <TokenIssuanceStep 
+                            formData={formData}
+                            setFormData={setFormData}
+                            txState={txState}
+                            setTxState={setTxState}
+                            errors={errors}
+                            onIssueTokens={handleIssueTokens}
+                            onAuthorizeHolder={handleAuthorizeHolder}
+                            loading={loading}
+                            setError={setError}
+                            showSnackbar={showSnackbar}
+                        />
+                    );
+                    case 7: return (
+                        <CompletionStep 
+                            txState={txState}
+                            formData={formData}
+                            xrplService={xrplService}
+                            onResetForm={handleResetForm}
+                            copyToClipboard={copyToClipboard}
+                        />
+                    );
+                    default: return (
+                        <WalletConnectionStep 
+                            formData={formData}
+                            setFormData={setFormData}
+                            validateField={validateField}
+                            errors={errors}
+                            setError={setError}
+                            onConnect={handleConnectWallet}
+                            connectionStatus={connectionStatus}
+                            loading={loading}
+                            wallet={wallet}
+                            accountInfo={accountInfo}
+                            warnings={warnings}
+                            onContinue={handleContinueFromWallet}
+                        />
+                    );
+                }
+            };
+            
+            return (
+                <ThemeProvider theme={theme}>
+                    <CssBaseline />
+                    <Box
+                        sx={{
+                            minHeight: '100vh',
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            py: 4
+                        }}
+                    >
+                        <Container maxWidth="lg">
+                            {/* Header */}
+                            <Paper elevation={3} sx={{ mb: 3, p: 3 }}>
+                                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                                    <Box>
+                                        <Typography variant="h4" component="h1" color="primary">
+                                            MPT Token Creator
+                                        </Typography>
+                                        <Typography variant="subtitle1" color="warning.main" sx={{ fontWeight: 'bold' }}>
+                                            ⚠️ TESTING TOOL ONLY
+                                        </Typography>
+                                    </Box>
+                                    <Box display="flex" gap={1} alignItems="center">
+                                        <ConnectionStatus 
+                                            status={connectionStatus} 
+                                            onReconnect={() => {
+                                                if (activeStep === 0) {
+                                                    // If on wallet step, focus the secret key field
+                                                    document.querySelector('input[type="password"]')?.focus();
+                                                } else {
+                                                    // Otherwise, prompt for reconnection
+                                                    const secretKey = prompt('Please enter your wallet secret key to reconnect:');
+                                                    if (secretKey) {
+                                                        setLoading(true);
+                                                        handleConnectWallet(secretKey).then(() => {
+                                                            setNeedsReconnection(false);
+                                                        }).catch(err => {
+                                                            showSnackbar('Failed to reconnect: ' + err.message, 'error');
+                                                        }).finally(() => {
+                                                            setLoading(false);
+                                                        });
+                                                    }
+                                                }
+                                            }}
+                                            showReconnect={connectionStatus === 'disconnected' && (activeStep > 0 || needsReconnection)}
+                                        />
+                                        <Chip 
+                                            label="🔴 MAINNET"
+                                            color="error"
+                                            variant="filled"
+                                            size="small"
+                                        />
+                                    </Box>
+                                </Box>
+                                <Typography variant="body1" color="text.secondary">
+                                    Create your own Multi-Purpose Tokens on the XRP Ledger
+                                </Typography>
+                            </Paper>
+
+                            {/* Progress Stepper */}
+                            <Paper elevation={3} sx={{ mb: 3, p: 3 }}>
+                                <Stepper activeStep={activeStep} orientation="horizontal">
+                                    {steps.map((label, index) => (
+                                        <Step key={label}>
+                                            <StepLabel>{label}</StepLabel>
+                                        </Step>
+                                    ))}
+                                </Stepper>
+                            </Paper>
+
+                            {/* Error Display */}
+                            {error && (
+                                <Alert 
+                                    severity="error" 
+                                    sx={{ mb: 3 }} 
+                                    onClose={() => setError('')}
+                                    action={
+                                        <Button 
+                                            color="inherit" 
+                                            size="small"
+                                            onClick={() => setError('')}
+                                        >
+                                            Dismiss
+                                        </Button>
+                                    }
+                                >
+                                    <AlertTitle>Error</AlertTitle>
+                                    {error}
+                                    <Typography variant="body2" sx={{ mt: 1 }}>
+                                        Need help? Check our troubleshooting guide or contact support.
+                                    </Typography>
+                                </Alert>
+                            )}
+
+                            {/* Loading Indicator */}
+                            {loading && <LinearProgress sx={{ mb: 3 }} />}
+
+                            {/* Step Content */}
+                            <Paper elevation={3} sx={{ p: 4 }}>
+                                {renderStepContent()}
+
+                                {/* Navigation buttons */}
+                                <Box display="flex" justifyContent="space-between" mt={4}>
+                                    <Button
+                                        disabled={loading || activeStep === 0}
+                                        onClick={handleBack}
+                                        variant="outlined"
+                                        startIcon={<span className="material-icons">arrow_back</span>}
+                                    >
+                                        Back
+                                    </Button>
+                                    
+                                    {activeStep < steps.length - 1 && (
+                                        <Button
+                                            disabled={loading}
+                                            onClick={handleNext}
+                                            variant="contained"
+                                            endIcon={<span className="material-icons">arrow_forward</span>}
+                                        >
+                                            {activeStep === steps.length - 2 ? 'Review & Create' : 'Next'}
+                                        </Button>
+                                    )}
+                                    
+                                    {activeStep === steps.length - 1 && (
+                                        <Button
+                                            disabled={loading}
+                                            variant="contained"
+                                            color="success"
+                                            endIcon={<span className="material-icons">check_circle</span>}
+                                            onClick={() => showSnackbar('Token creation process completed!', 'success')}
+                                        >
+                                            Complete
+                                        </Button>
+                                    )}
+                                </Box>
+                            </Paper>
+
+                            {/* Security Disclaimer - Bottom */}
+                            <Alert severity="error" sx={{ mt: 4, mb: 3 }}>
+                                <AlertTitle>🚨 TESTING TOOL ONLY - SECURITY WARNING</AlertTitle>
+                                <Typography variant="body2" component="div">
+                                    <Box component="ul" sx={{ m: 0, pl: 2, mb: 1 }}>
+                                        <li><strong>FOR TESTING PURPOSES ONLY</strong> - Do not use with real wallets or mainnet funds</li>
+                                        <li><strong>NO SECURITY GUARANTEES</strong> - We do not encrypt or secure your private keys</li>
+                                        <li><strong>USE TEST WALLETS ONLY</strong> - Only input seed phrases from disposable test wallets</li>
+                                        <li><strong>EDUCATIONAL USE</strong> - This tool is for exploring MPT creation and learning</li>
+                                    </Box>
+                                    <Typography variant="caption" sx={{ fontStyle: 'italic' }}>
+                                        By using this tool, you acknowledge it is experimental with no security warranties.
+                                    </Typography>
+                                </Typography>
+                            </Alert>
+
+                            {/* Footer */}
+                            <Box textAlign="center" mt={2}>
+                                <Typography variant="body2" color="white" sx={{ opacity: 0.8 }}>
+                                    XRPL Mainnet | XLS-33 & XLS-0089d Compliant
+                                </Typography>
+                                <Typography variant="caption" color="white" sx={{ opacity: 0.6 }}>
+                                    Experimental MPT creation tool - Use with caution
+                                </Typography>
+                            </Box>
+                        </Container>
+
+                        {/* Resume Session Dialog */}
+                        <ResumeSessionDialog
+                            open={showResumeDialog}
+                            onResume={handleResumeSession}
+                            onStartFresh={handleStartFresh}
+                        />
+                        
+                        {/* MPToken Manager */}
+                        <MPTokenManager
+                            wallet={wallet}
+                            xrplService={xrplService}
+                            showSnackbar={showSnackbar}
+                        />
+
+                        {/* Snackbar for notifications */}
+                        <Snackbar
+                            open={snackbarOpen}
+                            autoHideDuration={6000}
+                            onClose={() => setSnackbarOpen(false)}
+                        >
+                            <Alert 
+                                onClose={() => setSnackbarOpen(false)} 
+                                severity={snackbarSeverity}
+                                sx={{ width: '100%' }}
+                            >
+                                {snackbarMessage}
+                            </Alert>
+                        </Snackbar>
+                    </Box>
+                </ThemeProvider>
+            );
+        }
+
+        // Render the application
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<MPTCreatorApp />);
+    </script>
+</body>
+</html>

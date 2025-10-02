@@ -233,13 +233,17 @@ const MPTokenManager = React.memo(({ wallet, isStandalone = false }) => {
                                                     )}
                                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                                                         <Typography variant="caption" color="text.secondary">
-                                                            ID: {token.MPTokenIssuanceID.substring(0, 16)}...
+                                                            ID: {token.MPTokenIssuanceID ? 
+                                                                `${token.MPTokenIssuanceID.substring(0, 16)}...` : 
+                                                                'Unknown ID'}
                                                         </Typography>
-                                                        <Tooltip title="Copy ID">
-                                                            <IconButton size="small" onClick={() => copyToClipboard(token.MPTokenIssuanceID)}>
-                                                                <ContentCopyIcon fontSize="small" />
-                                                            </IconButton>
-                                                        </Tooltip>
+                                                        {token.MPTokenIssuanceID && (
+                                                            <Tooltip title="Copy ID">
+                                                                <IconButton size="small" onClick={() => copyToClipboard(token.MPTokenIssuanceID)}>
+                                                                    <ContentCopyIcon fontSize="small" />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                        )}
                                                     </Box>
                                                     <Typography variant="caption" display="block">
                                                         Max Amount: {token.MaximumAmount || 'Unlimited'}

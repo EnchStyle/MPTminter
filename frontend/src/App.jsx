@@ -540,15 +540,28 @@ function App() {
 
     const isStepCompleted = (step) => {
         switch (step) {
-            case 0: return wallet !== null;
-            case 1: return formData.currencyCode && formData.name && formData.description;
-            case 2: return activeStep > 2; // Token Config completed when moved past it
-            case 3: return activeStep > 3; // Metadata completed when moved past it
-            case 4: return txState.createComplete;
-            case 5: return txState.createComplete;
-            case 6: return txState.issueComplete;
-            case 7: return txState.issueComplete; // Completion step
-            default: return false;
+            case 0: // Wallet Connection
+                return wallet !== null;
+            case 1: // Token Information
+                return !!(formData.currencyCode && formData.name && formData.description);
+            case 2: // Token Configuration
+                return formData.assetScale !== undefined && 
+                       formData.assetScale !== '' && 
+                       formData.transferFee !== undefined &&
+                       formData.transferFee !== '' &&
+                       activeStep > 2;
+            case 3: // Metadata (Optional)
+                return activeStep > 3; // Optional step, just check if moved past
+            case 4: // Review & Create
+                return txState.createComplete;
+            case 5: // Token Created
+                return txState.createComplete && !!txState.mptIssuanceId;
+            case 6: // Issue Tokens
+                return txState.issueComplete;
+            case 7: // Complete
+                return txState.issueComplete && !!txState.finalBalance;
+            default: 
+                return false;
         }
     };
 

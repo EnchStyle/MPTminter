@@ -189,9 +189,22 @@ const TokenOperations = () => {
     };
 
     const checkTokenHolders = async (mptIssuanceId) => {
-        // This would need to be implemented in xrplService
-        // For now, return empty array
-        return [];
+        try {
+            // Get all MPToken objects for this issuance
+            const holders = await xrplService.getMPTokenHolders(mptIssuanceId);
+            
+            // Filter out zero-balance holders (they don't count as outstanding)
+            const activeHolders = holders.filter(holder => 
+                holder.MPTokenAmount && parseInt(holder.MPTokenAmount) > 0
+            );
+            
+            return activeHolders;
+        } catch (error) {
+            console.error('Error checking token holders:', error);
+            // Return empty array on error to allow destroy attempt
+            // The XRPL will reject if there are actually holders
+            return [];
+        }
     };
 
     const formatFlags = (flags) => {

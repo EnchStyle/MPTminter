@@ -150,6 +150,43 @@ class XRPLService {
         }
     }
 
+    async getMPTokenHolders(mptIssuanceId) {
+        const client = await this.getClient();
+        const holders = [];
+        
+        try {
+            // We need to query the ledger for all MPToken objects with this issuance ID
+            // This is done through ledger_data command with MPToken type filter
+            let marker = undefined;
+            
+            do {
+                const request = {
+                    command: 'ledger_data',
+                    ledger_index: 'validated',
+                    type: 'mptoken',
+                    marker: marker
+                };
+                
+                const response = await client.request(request);
+                
+                // Filter for tokens matching our issuance ID
+                if (response.result.state) {
+                    const matchingTokens = response.result.state.filter(item => 
+                        item.MPTokenIssuanceID === mptIssuanceId
+                    );
+                    holders.push(...matchingTokens);
+                }
+                
+                marker = response.result.marker;
+            } while (marker);
+            
+            return holders;
+        } catch (e) {
+            console.error('Error fetching MPToken holders:', e);
+            return [];
+        }
+    }
+
     getConnectionStatus() {
         return this.connectionStatus;
     }

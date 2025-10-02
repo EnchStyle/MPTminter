@@ -111,6 +111,7 @@ const TokenOperations = () => {
                 Flags: lock ? 0x0001 : 0x0002 // tfMPTLock : tfMPTUnlock
             };
 
+            console.log('Attempting MPTokenIssuanceSet with:', tx);
             const result = await xrplService.submitTransaction(tx, wallet);
 
             if (result.result.validated) {
@@ -153,6 +154,7 @@ const TokenOperations = () => {
                 MPTokenIssuanceID: issuance.MPTokenIssuanceID
             };
 
+            console.log('Attempting MPTokenIssuanceDestroy with:', tx);
             const result = await xrplService.submitTransaction(tx, wallet);
 
             if (result.result.validated) {
@@ -162,14 +164,21 @@ const TokenOperations = () => {
                 throw new Error('Transaction failed validation');
             }
         } catch (error) {
-            console.error('Failed to destroy issuance:', error);
+            console.error('Failed to destroy issuance - Full error:', error);
+            console.error('Error response:', error.response);
+            console.error('Error data:', error.data);
+            
             let errorMessage = error.message || 'Unknown error';
             
             // Handle specific error cases
             if (errorMessage.includes('Invalid field TransactionType')) {
+                // Log the exact error for debugging
+                console.error('TransactionType error - exact message:', errorMessage);
                 errorMessage = 'MPTokenIssuanceDestroy may not be activated on mainnet yet.';
             } else if (errorMessage.includes('NotEnabled')) {
                 errorMessage = 'This MPT feature is not yet enabled on mainnet.';
+            } else if (errorMessage.includes('temDISABLED')) {
+                errorMessage = 'This transaction type is currently disabled.';
             }
             
             showSnackbar(`Failed to destroy issuance: ${errorMessage}`, 'error');

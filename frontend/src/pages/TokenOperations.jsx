@@ -121,7 +121,16 @@ const TokenOperations = () => {
             }
         } catch (error) {
             console.error(`Failed to ${lock ? 'lock' : 'unlock'} tokens:`, error);
-            showSnackbar(`Failed to ${lock ? 'lock' : 'unlock'} tokens: ${error.message}`, 'error');
+            let errorMessage = error.message || 'Unknown error';
+            
+            // Handle specific error cases
+            if (errorMessage.includes('Invalid field TransactionType')) {
+                errorMessage = 'MPTokenIssuanceSet may not be supported on this network. Please ensure you are connected to a network that supports MPT.';
+            } else if (errorMessage.includes('NotEnabled')) {
+                errorMessage = 'MPT feature is not enabled on this network. Please use an MPT-enabled testnet or wait for mainnet activation.';
+            }
+            
+            showSnackbar(`Failed to ${lock ? 'lock' : 'unlock'} tokens: ${errorMessage}`, 'error');
         } finally {
             setLoading(false);
             setOperation(null);
@@ -154,7 +163,16 @@ const TokenOperations = () => {
             }
         } catch (error) {
             console.error('Failed to destroy issuance:', error);
-            showSnackbar(`Failed to destroy issuance: ${error.message}`, 'error');
+            let errorMessage = error.message || 'Unknown error';
+            
+            // Handle specific error cases
+            if (errorMessage.includes('Invalid field TransactionType')) {
+                errorMessage = 'MPTokenIssuanceDestroy may not be supported on this network. Please ensure you are connected to a network that supports MPT (Multi-Purpose Tokens).';
+            } else if (errorMessage.includes('NotEnabled')) {
+                errorMessage = 'MPT feature is not enabled on this network. Please use an MPT-enabled testnet or wait for mainnet activation.';
+            }
+            
+            showSnackbar(`Failed to destroy issuance: ${errorMessage}`, 'error');
         } finally {
             setLoading(false);
             setConfirmDialog({ open: false, action: null });

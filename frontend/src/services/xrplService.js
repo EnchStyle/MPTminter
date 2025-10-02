@@ -106,18 +106,33 @@ class XRPLService {
             // First try to submit
             const submitResult = await client.submit(signed.tx_blob);
             console.log('Submit result:', submitResult);
+            console.log('Transaction hash:', submitResult.result.tx_json?.hash);
             
-            if (submitResult.result.engine_result_code !== 0) {
+            if (submitResult.result.engine_result !== 'tesSUCCESS' && 
+                submitResult.result.engine_result !== 'terQUEUED') {
                 // Return the failed transaction details
-                const error = new Error(submitResult.result.engine_result_message);
+                const error = new Error(submitResult.result.engine_result_message || submitResult.result.engine_result);
                 error.txResult = submitResult.result;
                 error.txHash = submitResult.result.tx_json?.hash;
+                error.engineResult = submitResult.result.engine_result;
+                error.engineResultCode = submitResult.result.engine_result_code;
+                
+                // Log for debugging
+                console.error('Transaction failed with engine result:', submitResult.result.engine_result);
+                console.error('Full submit result:', submitResult);
+                
                 throw error;
             }
             
             // If submitted successfully, wait for validation
-            const result = await client.waitForTransaction(signed.tx_blob);
-            return result;
+            try {
+                const result = await client.waitForTransaction(signed.tx_blob);
+                return result;
+            } catch (waitError) {
+                // If wait fails, still return submit result
+                console.warn('Wait for transaction failed, returning submit result:', waitError);
+                return submitResult;
+            }
         } catch (error) {
             console.error('Transaction submission error:', error);
             // Re-throw with transaction details

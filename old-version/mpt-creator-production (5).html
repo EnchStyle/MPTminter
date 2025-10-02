@@ -1,0 +1,1397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MPT Token Creator - XRPL Mainnet</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/xrpl@4.2.5/build/xrpl-latest.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .step-active {
+            background: #667eea;
+            color: white;
+        }
+        .step-completed {
+            background: #48bb78;
+            color: white;
+        }
+        .step-inactive {
+            background: #e2e8f0;
+            color: #718096;
+        }
+        .capability-card {
+            transition: all 0.2s ease;
+        }
+        .capability-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .capability-card.selected {
+            border-color: #3b82f6;
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        // Constants
+        const MAINNET_URL = 'wss://xrplcluster.com';
+        const MAINNET_EXPLORER = 'https://livenet.xrpl.org';
+
+        const ASSET_CLASSES = [
+            { value: 'rwa', label: 'Real World Asset (RWA)' },
+            { value: 'stablecoin', label: 'Stablecoin' },
+            { value: 'gaming', label: 'Gaming' },
+            { value: 'defi', label: 'DeFi' },
+            { value: 'utility', label: 'Utility' },
+            { value: 'governance', label: 'Governance' },
+            { value: 'nft', label: 'NFT/Collectible' },
+            { value: 'other', label: 'Other' }
+        ];
+
+        const RWA_SUBCLASSES = [
+            'private_credit', 'real_estate', 'equity', 'treasury', 'commodity', 
+            'art', 'intellectual_property', 'carbon_credit', 'other'
+        ];
+
+        const STABLECOIN_SUBCLASSES = [
+            'fiat_backed', 'crypto_backed', 'algorithmic', 'commodity_backed'
+        ];
+
+        const WEBLINK_CATEGORIES = [
+            { value: 'website', label: 'Official Website' },
+            { value: 'docs', label: 'Documentation' },
+            { value: 'whitepaper', label: 'Whitepaper' },
+            { value: 'github', label: 'GitHub' },
+            { value: 'twitter', label: 'Twitter/X' },
+            { value: 'discord', label: 'Discord' },
+            { value: 'telegram', label: 'Telegram' },
+            { value: 'medium', label: 'Medium/Blog' }
+        ];
+
+        function MPTCreator() {
+            const [step, setStep] = useState(1);
+            const [secretKey, setSecretKey] = useState('');
+            const [wallet, setWallet] = useState(null);
+            const [accountInfo, setAccountInfo] = useState(null);
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState('');
+            const [txResult, setTxResult] = useState(null);
+            const [warnings, setWarnings] = useState([]);
+
+            const [formData, setFormData] = useState({
+                currencyCode: '',
+                name: '',
+                description: '',
+                assetScale: '0',
+                maxAmount: '9223372036854775807',
+                transferFee: '0',
+                canLock: false,
+                requireAuth: false,
+                canEscrow: false,
+                canTrade: true,
+                canTransfer: true,
+                canClawback: false,
+                assetClass: '',
+                assetSubclass: '',
+                iconUrl: '',
+                weblinks: []
+            });
+
+            const validateSecretKey = (secret) => {
+                if (!secret || !secret.startsWith('s')) {
+                    return 'Secret key must start with "s"';
+                }
+                try {
+                    xrpl.Wallet.fromSeed(secret);
+                    return null;
+                } catch (err) {
+                    return 'Invalid secret key format';
+                }
+            };
+
+            const connectWallet = async () => {
+                setError('');
+                setLoading(true);
+                
+                const validationError = validateSecretKey(secretKey);
+                if (validationError) {
+                    setError(validationError);
+                    setLoading(false);
+                    return;
+                }
+                
+                try {
+                    const w = xrpl.Wallet.fromSeed(secretKey);
+                    setWallet(w);
+                    
+                    const client = new xrpl.Client(MAINNET_URL);
+                    await client.connect();
+                    
+                    try {
+                        const response = await client.request({
+                            command: 'account_info',
+                            account: w.address,
+                            ledger_index: 'validated'
+                        });
+                        
+                        const info = response.result.account_data;
+                        setAccountInfo(info);
+                        
+                        // Check reserves
+                        const balance = parseFloat(info.Balance) / 1000000;
+                        const baseReserve = 1;
+                        const ownerReserve = 0.2;
+                        const ownerCount = info.OwnerCount || 0;
+                        const requiredReserve = baseReserve + (ownerCount * ownerReserve);
+                        const totalNeeded = requiredReserve + ownerReserve + 0.1;
+                        
+                        const newWarnings = [];
+                        
+                        if (balance < totalNeeded) {
+                            newWarnings.push({
+                                type: 'error',
+                                message: `Insufficient XRP. Need ${totalNeeded.toFixed(2)} XRP, have ${balance.toFixed(6)} XRP. Please add ${(totalNeeded - balance).toFixed(6)} XRP.`
+                            });
+                        }
+                        
+                        if (!info.Domain) {
+                            newWarnings.push({
+                                type: 'warning',
+                                message: 'Domain field not set. Recommended for issuer verification and trust.'
+                            });
+                        }
+                        
+                        setWarnings(newWarnings);
+                        
+                        if (balance >= totalNeeded) {
+                            setStep(2);
+                        }
+                        
+                    } catch (accountError) {
+                        if (accountError.data?.error === 'actNotFound') {
+                            setError('Account not found on Mainnet. Please fund this account with at least 1.3 XRP first.');
+                        } else {
+                            throw accountError;
+                        }
+                    }
+                    
+                    await client.disconnect();
+                } catch (err) {
+                    setError('Connection failed: ' + err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const buildMetadata = () => {
+                const metadata = {
+                    c: formData.currencyCode,
+                    n: formData.name,
+                    d: formData.description
+                };
+
+                if (formData.iconUrl) metadata.i = formData.iconUrl;
+                if (formData.assetClass) metadata.cl = formData.assetClass;
+                if (formData.assetSubclass) metadata.cs = formData.assetSubclass;
+                if (formData.name) metadata.a = formData.name;
+
+                if (formData.weblinks.length > 0) {
+                    metadata.w = formData.weblinks
+                        .filter(link => link.url && link.title)
+                        .map(link => ({
+                            u: link.url,
+                            c: link.category,
+                            t: link.title
+                        }));
+                }
+
+                const jsonStr = JSON.stringify(metadata);
+                const encoder = new TextEncoder();
+                const bytes = encoder.encode(jsonStr);
+                const hexMetadata = Array.from(bytes)
+                    .map(b => b.toString(16).padStart(2, '0'))
+                    .join('')
+                    .toUpperCase();
+                
+                if (hexMetadata.length > 2048) {
+                    throw new Error(`Metadata too large: ${hexMetadata.length / 2} bytes (max 1024 bytes)`);
+                }
+
+                return hexMetadata;
+            };
+
+            const createMPT = async () => {
+                const hasError = warnings.some(w => w.type === 'error');
+                if (hasError) {
+                    setError('Cannot create MPT: Insufficient XRP balance');
+                    return;
+                }
+                
+                setLoading(true);
+                setError('');
+                
+                try {
+                    console.log('=== MPT Creation Debug Info ===');
+                    console.log('xrpl.js version:', xrpl.version || 'unknown');
+                    console.log('Connecting to:', MAINNET_URL);
+                    
+                    const client = new xrpl.Client(MAINNET_URL);
+                    await client.connect();
+                    
+                    console.log('Connected successfully');
+                    console.log('Server info:', await client.request({ command: 'server_info' }));
+
+                    let flags = 0;
+                    if (formData.canLock) flags |= 0x0002;
+                    if (formData.requireAuth) flags |= 0x0004;
+                    if (formData.canEscrow) flags |= 0x0008;
+                    if (formData.canTrade) flags |= 0x0010;
+                    if (formData.canTransfer) flags |= 0x0020;
+                    if (formData.canClawback) flags |= 0x0040;
+
+                    console.log('Flags calculated:', flags, '(binary:', flags.toString(2), ')');
+
+                    const metadata = buildMetadata();
+                    console.log('Metadata length:', metadata.length / 2, 'bytes');
+
+                    const tx = {
+                        TransactionType: 'MPTokenIssuanceCreate',
+                        Account: wallet.address,
+                        AssetScale: parseInt(formData.assetScale),
+                        MaximumAmount: formData.maxAmount,
+                        TransferFee: parseInt(formData.transferFee),
+                        Flags: flags,
+                        MPTokenMetadata: metadata
+                    };
+
+                    console.log('Transaction object:', JSON.stringify(tx, null, 2));
+                    console.log('Field types:');
+                    console.log('  - AssetScale:', typeof tx.AssetScale, '=', tx.AssetScale);
+                    console.log('  - TransferFee:', typeof tx.TransferFee, '=', tx.TransferFee);
+                    console.log('  - Flags:', typeof tx.Flags, '=', tx.Flags);
+                    console.log('  - MaximumAmount:', typeof tx.MaximumAmount, '=', tx.MaximumAmount);
+
+                    console.log('Preparing transaction...');
+                    const prepared = await client.autofill(tx);
+                    console.log('Prepared transaction:', JSON.stringify(prepared, null, 2));
+                    
+                    console.log('Signing transaction...');
+                    const signed = wallet.sign(prepared);
+                    console.log('Transaction signed, hash:', signed.hash);
+                    
+                    console.log('Submitting transaction...');
+                    const result = await client.submitAndWait(signed.tx_blob);
+                    console.log('Transaction result:', JSON.stringify(result, null, 2));
+
+                    if (result.result.meta.TransactionResult === 'tesSUCCESS') {
+                        console.log('✅ Transaction successful!');
+                        setTxResult({
+                            success: true,
+                            hash: result.result.hash,
+                            mptIssuanceId: result.result.meta.mpt_issuance_id || null,
+                            ledgerIndex: result.result.ledger_index
+                        });
+                        setStep(6);
+                    } else {
+                        throw new Error('Transaction failed: ' + result.result.meta.TransactionResult);
+                    }
+
+                    await client.disconnect();
+                } catch (err) {
+                    console.error('=== MPT Creation Error ===');
+                    console.error('Error object:', err);
+                    console.error('Error message:', err.message);
+                    console.error('Error data:', err.data);
+                    console.error('Stack trace:', err.stack);
+                    
+                    let errorMessage = 'MPT creation failed: ' + err.message;
+                    
+                    // Enhanced error messages
+                    if (err.message.includes('Invalid field TransactionType')) {
+                        errorMessage = 'Transaction type not recognized. This may mean: \n' +
+                                     '• MPTs are not yet enabled on this network\n' +
+                                     '• The xrpl.js library version doesn\'t support MPTs\n' +
+                                     '• A field has an incorrect data type\n\n' +
+                                     'Check browser console (F12) for detailed debug info.';
+                    } else if (err.message.includes('temMALFORMED')) {
+                        errorMessage = 'Transaction is malformed. Check that all fields have correct types. See console for details.';
+                    } else if (err.data?.error) {
+                        errorMessage = `Server error: ${err.data.error}\nDetails: ${err.data.error_message || 'No additional details'}`;
+                    }
+                    
+                    setError(errorMessage);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const addWeblink = () => {
+                setFormData({
+                    ...formData,
+                    weblinks: [...formData.weblinks, { url: '', category: 'website', title: '' }]
+                });
+            };
+
+            const updateWeblink = (index, field, value) => {
+                const newWeblinks = [...formData.weblinks];
+                newWeblinks[index][field] = value;
+                setFormData({ ...formData, weblinks: newWeblinks });
+            };
+
+            const removeWeblink = (index) => {
+                setFormData({
+                    ...formData,
+                    weblinks: formData.weblinks.filter((_, i) => i !== index)
+                });
+            };
+
+            const getSubclasses = () => {
+                if (formData.assetClass === 'rwa') return RWA_SUBCLASSES;
+                if (formData.assetClass === 'stablecoin') return STABLECOIN_SUBCLASSES;
+                return [];
+            };
+
+            const resetForm = () => {
+                setStep(1);
+                setSecretKey('');
+                setWallet(null);
+                setAccountInfo(null);
+                setTxResult(null);
+                setWarnings([]);
+                setError('');
+                setFormData({
+                    currencyCode: '',
+                    name: '',
+                    description: '',
+                    assetScale: '0',
+                    maxAmount: '9223372036854775807',
+                    transferFee: '0',
+                    canLock: false,
+                    requireAuth: false,
+                    canEscrow: false,
+                    canTrade: true,
+                    canTransfer: true,
+                    canClawback: false,
+                    assetClass: '',
+                    assetSubclass: '',
+                    iconUrl: '',
+                    weblinks: []
+                });
+            };
+
+            return (
+                <div className="min-h-screen gradient-bg py-8 px-4">
+                    <div className="max-w-4xl mx-auto">
+                        {/* Header */}
+                        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                            <div className="flex items-center justify-between mb-2">
+                                <h1 className="text-3xl font-bold text-gray-800">Token Creator</h1>
+                                <div className="bg-purple-600 text-white px-4 py-2 rounded-full font-bold text-sm">
+                                    🔴 LIVE
+                                </div>
+                            </div>
+                            <p className="text-gray-600">Create your own digital token on the XRP Ledger</p>
+                            
+                            {wallet && accountInfo && (
+                                <div className="mt-4 space-y-2">
+                                    <div className="p-3 bg-blue-50 rounded-lg">
+                                        <p className="text-xs text-gray-600 mb-1">Connected Address</p>
+                                        <p className="font-mono text-sm text-blue-700 break-all">{wallet.address}</p>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <div className="p-3 bg-green-50 rounded-lg">
+                                            <p className="text-xs text-gray-600">XRP Balance</p>
+                                            <p className="font-bold text-green-700">{(parseFloat(accountInfo.Balance) / 1000000).toFixed(6)} XRP</p>
+                                        </div>
+                                        <div className="p-3 bg-gray-50 rounded-lg">
+                                            <p className="text-xs text-gray-600">Owned Items</p>
+                                            <p className="font-bold">{accountInfo.OwnerCount || 0}</p>
+                                        </div>
+                                        <div className="p-3 bg-gray-50 rounded-lg">
+                                            <p className="text-xs text-gray-600">Transaction #</p>
+                                            <p className="font-bold">{accountInfo.Sequence}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    {warnings.map((warning, idx) => (
+                                        <div key={idx} className={`p-3 rounded-lg border-l-4 ${
+                                            warning.type === 'error' ? 'bg-red-50 border-red-500' : 'bg-yellow-50 border-yellow-500'
+                                        }`}>
+                                            <p className={`text-sm ${warning.type === 'error' ? 'text-red-700' : 'text-yellow-700'}`}>
+                                                {warning.type === 'error' ? '❌ ' : '⚠️ '}
+                                                {warning.message}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Progress Steps */}
+                        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                            <div className="flex justify-between items-center overflow-x-auto">
+                                {['Connect', 'Info', 'Config', 'Meta', 'Review', 'Created', 'Issue', 'Done'].map((label, idx) => (
+                                    <div key={idx} className="flex items-center flex-shrink-0">
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
+                                            step > idx + 1 ? 'step-completed' :
+                                            step === idx + 1 ? 'step-active' : 'step-inactive'
+                                        }`}>
+                                            {step > idx + 1 ? '✓' : idx + 1}
+                                        </div>
+                                        <span className="ml-1 text-xs font-medium hidden sm:block">{label}</span>
+                                        {idx < 7 && <div className="w-4 h-1 bg-gray-300 mx-1 hidden sm:block"></div>}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Error Display */}
+                        {error && (
+                            <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded">
+                                <p className="text-red-700 font-medium whitespace-pre-line">{error}</p>
+                                <details className="mt-3">
+                                    <summary className="text-sm text-red-600 cursor-pointer font-medium">🔍 Troubleshooting Tips</summary>
+                                    <div className="mt-2 text-xs text-red-600 space-y-1">
+                                        <p>• Open browser console (F12) to see detailed logs</p>
+                                        <p>• Check that you're using xrpl.js version 4.2.5 or higher</p>
+                                        <p>• Verify MPTs are enabled on this network</p>
+                                        <p>• Make sure all form fields have valid values</p>
+                                        <p>• Try refreshing the page and reconnecting</p>
+                                    </div>
+                                </details>
+                            </div>
+                        )}
+
+                        {/* Step 1: Connect */}
+                        {step === 1 && (
+                            <div className="bg-white rounded-lg shadow-lg p-6">
+                                <h2 className="text-2xl font-bold mb-4">Connect to Mainnet</h2>
+                                
+                                <div className="mb-6 p-4 bg-red-50 border-2 border-red-500 rounded-lg">
+                                    <p className="text-red-800 font-bold flex items-center text-sm">
+                                        <span className="text-xl mr-2">⚠️</span>
+                                        LIVE NETWORK - YOU'RE USING REAL MONEY
+                                    </p>
+                                    <ul className="text-red-700 text-xs mt-2 ml-6 space-y-1">
+                                        <li>• You need at least 1.3 XRP in your wallet</li>
+                                        <li>• Once created, most token settings cannot be changed</li>
+                                        <li>• Creating a token costs real XRP (fees and reserves)</li>
+                                    </ul>
+                                </div>
+                                
+                                <div className="mb-4">
+                                    <label className="block text-gray-700 font-medium mb-2">Your Wallet Secret Key</label>
+                                    <input
+                                        type="password"
+                                        value={secretKey}
+                                        onChange={(e) => setSecretKey(e.target.value)}
+                                        className="w-full p-3 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-mono"
+                                        placeholder="sXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                                        disabled={loading}
+                                    />
+                                    <p className="text-xs text-gray-500 mt-2">Starts with the letter 's' followed by numbers and letters. Keep this private!</p>
+                                </div>
+                                
+                                <button
+                                    onClick={connectWallet}
+                                    disabled={loading || !secretKey}
+                                    className="w-full bg-purple-600 text-white py-3 rounded-lg font-bold hover:bg-purple-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                >
+                                    {loading ? '⌛ Connecting...' : '🚀 Connect to Mainnet'}
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Step 2: Basic Info */}
+                        {step === 2 && (
+                            <div className="bg-white rounded-lg shadow-lg p-6">
+                                <h2 className="text-2xl font-bold mb-4">Name Your Token</h2>
+                                
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-gray-700 font-medium mb-2">Token Symbol *</label>
+                                        <input
+                                            type="text"
+                                            maxLength="3"
+                                            value={formData.currencyCode}
+                                            onChange={(e) => setFormData({...formData, currencyCode: e.target.value.toUpperCase()})}
+                                            className="w-full p-3 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                            placeholder="USD"
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">3 letters only (like USD, EUR, or BTC). This represents your token everywhere.</p>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-gray-700 font-medium mb-2">Token Name *</label>
+                                        <input
+                                            type="text"
+                                            value={formData.name}
+                                            onChange={(e) => setFormData({...formData, name: e.target.value})}
+                                            className="w-full p-3 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                            placeholder="My Awesome Token"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-gray-700 font-medium mb-2">Description *</label>
+                                        <textarea
+                                            value={formData.description}
+                                            onChange={(e) => setFormData({...formData, description: e.target.value})}
+                                            className="w-full p-3 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 h-24"
+                                            placeholder="Describe your token's purpose and use cases..."
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-4 mt-6">
+                                    <button
+                                        onClick={() => setStep(1)}
+                                        className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-400 transition"
+                                    >
+                                        Back
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (!formData.currencyCode || !formData.name || !formData.description) {
+                                                setError('Please fill in all required fields');
+                                                return;
+                                            }
+                                            if (formData.currencyCode.length !== 3) {
+                                                setError('Currency code must be exactly 3 characters');
+                                                return;
+                                            }
+                                            setError('');
+                                            setStep(3);
+                                        }}
+                                        className="flex-1 bg-purple-600 text-white py-3 rounded-lg font-medium hover:bg-purple-700 transition"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step 3: Configuration */}
+                        {step === 3 && (
+                            <div className="bg-white rounded-lg shadow-lg p-6">
+                                <h2 className="text-2xl font-bold mb-4">Token Settings</h2>
+                                
+                                <div className="space-y-4 mb-6">
+                                    <div>
+                                        <label className="block text-gray-700 font-medium mb-2">
+                                            Decimal Places
+                                            <span className="ml-2 text-xs text-gray-500 font-normal">(How divisible is your token?)</span>
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="19"
+                                            value={formData.assetScale}
+                                            onChange={(e) => setFormData({...formData, assetScale: e.target.value})}
+                                            className="w-full p-3 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            Choose 0 for whole numbers only, or 2 for cents/pennies (like $1.50). Most tokens use 0 or 2.
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-gray-700 font-medium mb-2">
+                                            Maximum Supply
+                                            <span className="ml-2 text-xs text-gray-500 font-normal">(Total tokens that can ever exist)</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.maxAmount}
+                                            onChange={(e) => setFormData({...formData, maxAmount: e.target.value})}
+                                            className="w-full p-3 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-mono text-sm"
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">The cap on how many tokens can be created. Default is the maximum possible.</p>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-gray-700 font-medium mb-2">
+                                            Trading Fee (Optional)
+                                            <span className="ml-2 text-xs text-gray-500 font-normal">(Percentage you earn on transfers)</span>
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            max="50000"
+                                            value={formData.transferFee}
+                                            onChange={(e) => setFormData({...formData, transferFee: e.target.value})}
+                                            className="w-full p-3 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">Enter 0 for no fee, or try 100 for 0.1% fee. Range: 0-50000 (max 50%)</p>
+                                    </div>
+                                </div>
+
+                                <div className="mb-6">
+                                    <h3 className="text-lg font-bold text-gray-800 mb-2">Special Features & Permissions</h3>
+                                    <p className="text-sm text-gray-600 mb-4">⚠️ Choose carefully! These cannot be changed after you create your token.</p>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {[
+                                            { 
+                                                key: 'canLock', 
+                                                label: '🔒 Freeze', 
+                                                title: 'Freeze Tokens', 
+                                                desc: 'You can freeze tokens in user wallets if needed', 
+                                                recommended: false 
+                                            },
+                                            { 
+                                                key: 'requireAuth', 
+                                                label: '✅ Approval Required', 
+                                                title: 'Pre-approve Holders', 
+                                                desc: 'People need your permission before they can hold this token', 
+                                                recommended: false 
+                                            },
+                                            { 
+                                                key: 'canEscrow', 
+                                                label: '⏰ Time Locks', 
+                                                title: 'Schedule Releases', 
+                                                desc: 'Lock tokens until a future date (great for vesting)', 
+                                                recommended: true 
+                                            },
+                                            { 
+                                                key: 'canTrade', 
+                                                label: '📈 Tradeable', 
+                                                title: 'Exchange Trading', 
+                                                desc: 'Let people buy and sell on decentralized exchanges', 
+                                                recommended: true 
+                                            },
+                                            { 
+                                                key: 'canTransfer', 
+                                                label: '💸 Transferable', 
+                                                title: 'Send to Anyone', 
+                                                desc: 'People can send tokens to each other freely', 
+                                                recommended: true 
+                                            },
+                                            { 
+                                                key: 'canClawback', 
+                                                label: '↩️ Take Back', 
+                                                title: 'Reverse Transfers', 
+                                                desc: 'You can take tokens back from users if necessary', 
+                                                recommended: false 
+                                            }
+                                        ].map(flag => (
+                                            <label
+                                                key={flag.key}
+                                                className={`capability-card cursor-pointer p-4 border-2 rounded-lg ${
+                                                    formData[flag.key] ? 'selected' : 'border-gray-200'
+                                                }`}
+                                            >
+                                                <div className="flex items-start justify-between mb-2">
+                                                    <div className="flex items-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={formData[flag.key]}
+                                                            onChange={(e) => setFormData({...formData, [flag.key]: e.target.checked})}
+                                                            className="w-5 h-5 text-blue-600 rounded"
+                                                        />
+                                                        <div className="ml-3">
+                                                            <div className="font-bold text-sm">{flag.label}</div>
+                                                            <div className="text-xs text-gray-600">{flag.desc}</div>
+                                                        </div>
+                                                    </div>
+                                                    {flag.recommended && (
+                                                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-medium">
+                                                            Rec
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-4">
+                                    <button
+                                        onClick={() => setStep(2)}
+                                        className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-400 transition"
+                                    >
+                                        Back
+                                    </button>
+                                    <button
+                                        onClick={() => setStep(4)}
+                                        className="flex-1 bg-purple-600 text-white py-3 rounded-lg font-medium hover:bg-purple-700 transition"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step 4: Metadata */}
+                        {step === 4 && (
+                            <div className="bg-white rounded-lg shadow-lg p-6">
+                                <h2 className="text-2xl font-bold mb-4">Additional Information (Optional)</h2>
+                                <p className="text-sm text-gray-600 mb-4">Add details to help people understand and trust your token.</p>
+                                
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-gray-700 font-medium mb-2">What type of token is this?</label>
+                                        <select
+                                            value={formData.assetClass}
+                                            onChange={(e) => setFormData({...formData, assetClass: e.target.value, assetSubclass: ''})}
+                                            className="w-full p-3 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                        >
+                                            <option value="">Select category...</option>
+                                            {ASSET_CLASSES.map(cls => (
+                                                <option key={cls.value} value={cls.value}>{cls.label}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {getSubclasses().length > 0 && (
+                                        <div>
+                                            <label className="block text-gray-700 font-medium mb-2">More specifically...</label>
+                                            <select
+                                                value={formData.assetSubclass}
+                                                onChange={(e) => setFormData({...formData, assetSubclass: e.target.value})}
+                                                className="w-full p-3 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                            >
+                                                <option value="">Select subclass...</option>
+                                                {getSubclasses().map(sub => (
+                                                    <option key={sub} value={sub}>
+                                                        {sub.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <label className="block text-gray-700 font-medium mb-2">Token Image (Logo URL)</label>
+                                        <input
+                                            type="url"
+                                            value={formData.iconUrl}
+                                            onChange={(e) => setFormData({...formData, iconUrl: e.target.value})}
+                                            className="w-full p-3 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                            placeholder="https://example.com/my-token-logo.png"
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">Link to your token's logo image (PNG, JPG, or SVG)</p>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-gray-700 font-medium mb-2">Important Links (Website, Social Media, etc.)</label>
+                                        {formData.weblinks.map((link, idx) => (
+                                            <div key={idx} className="mb-3 p-3 border-2 rounded-lg bg-gray-50">
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <span className="font-medium text-sm">Link {idx + 1}</span>
+                                                    <button
+                                                        onClick={() => removeWeblink(idx)}
+                                                        className="text-red-600 hover:text-red-800 text-sm font-medium"
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                                <select
+                                                    value={link.category}
+                                                    onChange={(e) => updateWeblink(idx, 'category', e.target.value)}
+                                                    className="w-full p-2 border rounded mb-2"
+                                                >
+                                                    {WEBLINK_CATEGORIES.map(cat => (
+                                                        <option key={cat.value} value={cat.value}>{cat.label}</option>
+                                                    ))}
+                                                </select>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Link title"
+                                                    value={link.title}
+                                                    onChange={(e) => updateWeblink(idx, 'title', e.target.value)}
+                                                    className="w-full p-2 border rounded mb-2"
+                                                />
+                                                <input
+                                                    type="url"
+                                                    placeholder="https://..."
+                                                    value={link.url}
+                                                    onChange={(e) => updateWeblink(idx, 'url', e.target.value)}
+                                                    className="w-full p-2 border rounded"
+                                                />
+                                            </div>
+                                        ))}
+                                        <button
+                                            onClick={addWeblink}
+                                            className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-purple-500 hover:text-purple-600 transition font-medium"
+                                        >
+                                            + Add Another Link
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-4 mt-6">
+                                    <button
+                                        onClick={() => setStep(3)}
+                                        className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-400 transition"
+                                    >
+                                        Back
+                                    </button>
+                                    <button
+                                        onClick={() => setStep(5)}
+                                        className="flex-1 bg-purple-600 text-white py-3 rounded-lg font-medium hover:bg-purple-700 transition"
+                                    >
+                                        Review
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step 5: Review */}
+                        {step === 5 && (
+                            <div className="bg-white rounded-lg shadow-lg p-6">
+                                <h2 className="text-2xl font-bold mb-4">Review & Confirm</h2>
+                                
+                                <div className="mb-6 p-4 bg-purple-50 border-2 border-purple-500 rounded-lg">
+                                    <p className="text-purple-800 font-bold text-sm flex items-center">
+                                        <span className="text-xl mr-2">🔴</span>
+                                        Ready to create on the LIVE network
+                                    </p>
+                                    <p className="text-purple-700 text-xs mt-1">
+                                        Double-check everything below. Most settings are permanent!
+                                    </p>
+                                </div>
+                                
+                                <div className="space-y-4 text-sm">
+                                    <div className="border-b pb-3">
+                                        <h3 className="font-bold mb-2">Token Details</h3>
+                                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                                            <span className="text-gray-600">Symbol:</span>
+                                            <span className="font-medium">{formData.currencyCode}</span>
+                                            <span className="text-gray-600">Name:</span>
+                                            <span className="font-medium">{formData.name}</span>
+                                            <span className="text-gray-600">Description:</span>
+                                            <span className="font-medium col-span-1">{formData.description.slice(0, 50)}...</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="border-b pb-3">
+                                        <h3 className="font-bold mb-2">Settings</h3>
+                                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                                            <span className="text-gray-600">Decimals:</span>
+                                            <span className="font-medium">{formData.assetScale}</span>
+                                            <span className="text-gray-600">Max Supply:</span>
+                                            <span className="font-medium">{formData.maxAmount}</span>
+                                            <span className="text-gray-600">Trading Fee:</span>
+                                            <span className="font-medium">{formData.transferFee} ({(parseInt(formData.transferFee) * 0.001).toFixed(3)}%)</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="border-b pb-3">
+                                        <h3 className="font-bold mb-2">Features Enabled</h3>
+                                        <div className="flex flex-wrap gap-2">
+                                            {formData.canLock && <span className="px-2 py-1 bg-gray-200 rounded text-xs">🔒 Lock</span>}
+                                            {formData.requireAuth && <span className="px-2 py-1 bg-gray-200 rounded text-xs">✅ Auth</span>}
+                                            {formData.canEscrow && <span className="px-2 py-1 bg-gray-200 rounded text-xs">⏰ Escrow</span>}
+                                            {formData.canTrade && <span className="px-2 py-1 bg-gray-200 rounded text-xs">📈 Trade</span>}
+                                            {formData.canTransfer && <span className="px-2 py-1 bg-gray-200 rounded text-xs">💸 Transfer</span>}
+                                            {formData.canClawback && <span className="px-2 py-1 bg-gray-200 rounded text-xs">↩️ Clawback</span>}
+                                            {!formData.canLock && !formData.requireAuth && !formData.canEscrow && !formData.canTrade && !formData.canTransfer && !formData.canClawback && (
+                                                <span className="text-gray-500 text-xs">No additional capabilities</span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <h3 className="font-bold mb-2">Additional Info</h3>
+                                        <div className="text-xs space-y-1">
+                                            {formData.assetClass && <p>Type: <span className="font-medium">{formData.assetClass}</span></p>}
+                                            {formData.assetSubclass && <p>Category: <span className="font-medium">{formData.assetSubclass}</span></p>}
+                                            {formData.iconUrl && <p>Logo: <span className="font-medium">{formData.iconUrl}</span></p>}
+                                            {formData.weblinks.length > 0 && <p>Links: <span className="font-medium">{formData.weblinks.length} added</span></p>}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-4 mt-6">
+                                    <button
+                                        onClick={() => setStep(4)}
+                                        className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-400 transition"
+                                        disabled={loading}
+                                    >
+                                        Back
+                                    </button>
+                                    <button
+                                        onClick={createMPT}
+                                        disabled={loading}
+                                        className="flex-1 bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 transition disabled:bg-gray-400"
+                                    >
+                                        {loading ? '⌛ Creating Your Token...' : '✓ Create My Token'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step 6: Success - Token Created */}
+                        {step === 6 && txResult && (
+                            <div className="bg-white rounded-lg shadow-lg p-6">
+                                <div className="text-center mb-6">
+                                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    </div>
+                                    <h2 className="text-2xl font-bold text-gray-800 mb-2">Token Definition Created!</h2>
+                                    <p className="text-gray-600">Your MPT is defined, but no tokens exist yet</p>
+                                </div>
+
+                                {txResult.mptIssuanceId && (
+                                    <div className="p-4 bg-purple-50 rounded-lg mb-6">
+                                        <p className="text-xs text-gray-600 mb-1 font-medium">Your Token ID</p>
+                                        <p className="font-mono text-xs break-all text-purple-700 font-bold">{txResult.mptIssuanceId}</p>
+                                    </div>
+                                )}
+
+                                <div className="bg-blue-50 border-2 border-blue-500 rounded-lg p-4 mb-6">
+                                    <h3 className="font-bold text-blue-900 mb-2">📌 What Just Happened?</h3>
+                                    <div className="text-sm text-blue-800 space-y-2">
+                                        <p>✅ Token definition created (the "machine")</p>
+                                        <p>❌ Zero tokens minted (nothing issued yet)</p>
+                                        <p className="font-bold mt-2">Next: Actually create (mint) the tokens!</p>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-4">
+                                    <button
+                                        onClick={() => setStep(7)}
+                                        className="flex-1 bg-green-600 text-white py-4 rounded-lg font-bold hover:bg-green-700 transition text-lg"
+                                    >
+                                        → Issue Tokens Now
+                                    </button>
+                                    <button
+                                        onClick={resetForm}
+                                        className="flex-1 bg-gray-300 text-gray-700 py-4 rounded-lg font-medium hover:bg-gray-400 transition"
+                                    >
+                                        Done (Issue Later)
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step 7: Issue Tokens - Authorization & Payment */}
+                        {step === 7 && txResult && (
+                            <div className="bg-white rounded-lg shadow-lg p-6">
+                                <h2 className="text-2xl font-bold mb-4">Issue Your First Tokens</h2>
+                                
+                                <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-4 mb-6">
+                                    <h3 className="font-bold text-yellow-900 mb-2">⚠️ Two-Step Process (Must Complete in Order)</h3>
+                                    <div className="text-sm text-yellow-800 space-y-1">
+                                        <p><strong>1. FIRST:</strong> Holder authorizes (unlock Step 2)</p>
+                                        <p><strong>2. THEN:</strong> Issuer sends tokens (you)</p>
+                                        <p className="text-xs mt-2 italic">Step 2 is LOCKED until Step 1 completes ✓</p>
+                                    </div>
+                                </div>
+
+                                {/* Checkpoint Status Indicator */}
+                                {formData.holderAuthorized && (
+                                    <div className="bg-green-50 border-2 border-green-500 rounded-lg p-3 mb-4">
+                                        <p className="text-green-800 font-bold text-sm">
+                                            ✅ Checkpoint 1 Complete! Holder is authorized.
+                                        </p>
+                                        <p className="text-green-700 text-xs mt-1">
+                                            You can now proceed to issue tokens in Step 2 below.
+                                        </p>
+                                    </div>
+                                )}
+
+                                <div className="space-y-6">
+                                    {/* STEP 1: Holder Authorization (ALWAYS ENABLED) */}
+                                    <div className={`border-2 rounded-lg p-4 ${
+                                        formData.holderAuthorized ? 'border-green-500 bg-green-50 opacity-75' : 'border-blue-500 bg-blue-50'
+                                    }`}>
+                                        <h3 className="font-bold text-blue-900 mb-3 flex items-center">
+                                            <span className="bg-blue-500 text-white w-8 h-8 rounded-full flex items-center justify-center mr-2 font-bold">1</span>
+                                            Holder Authorization {formData.holderAuthorized && '✅'}
+                                        </h3>
+                                        
+                                        {formData.holderAuthorized ? (
+                                            <div className="text-sm text-green-800">
+                                                <p className="font-bold mb-2">✓ Authorization Complete</p>
+                                                <p className="text-xs font-mono bg-white p-2 rounded border">
+                                                    Holder: {formData.holderAddress}
+                                                </p>
+                                                <p className="text-xs mt-2">Authorization Tx: {txResult.authHash}</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                <div>
+                                                    <label className="block text-gray-700 font-medium mb-2">
+                                                        Holder's Secret Key
+                                                        <span className="text-xs text-red-600 ml-2">(Required - Different wallet!)</span>
+                                                    </label>
+                                                    <input
+                                                        type="password"
+                                                        placeholder="sXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                                                        value={formData.holderSecretKey || ''}
+                                                        onChange={(e) => setFormData({...formData, holderSecretKey: e.target.value})}
+                                                        className="w-full p-3 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                                                        disabled={loading}
+                                                    />
+                                                    <p className="text-xs text-gray-600 mt-1">
+                                                        • Must start with 's'<br/>
+                                                        • Must be DIFFERENT from your issuer wallet<br/>
+                                                        • This wallet will RECEIVE the tokens
+                                                    </p>
+                                                </div>
+
+                                                <button
+                                                    onClick={async () => {
+                                                        if (!formData.holderSecretKey) {
+                                                            setError('❌ Please enter holder secret key');
+                                                            return;
+                                                        }
+                                                        
+                                                        setLoading(true);
+                                                        setError('');
+                                                        
+                                                        try {
+                                                            const holderWallet = xrpl.Wallet.fromSeed(formData.holderSecretKey);
+                                                            
+                                                            console.log('=== CHECKPOINT 1: Holder Authorization ===');
+                                                            console.log('Holder address:', holderWallet.address);
+                                                            console.log('Issuer address:', wallet.address);
+                                                            
+                                                            if (holderWallet.address === wallet.address) {
+                                                                setError('❌ FAILED: Holder wallet MUST be different from issuer wallet!\n\nYou entered the SAME wallet twice.');
+                                                                setLoading(false);
+                                                                return;
+                                                            }
+                                                            
+                                                            const client = new xrpl.Client(MAINNET_URL);
+                                                            await client.connect();
+                                                            
+                                                            // Check if already authorized
+                                                            console.log('Checking existing authorization...');
+                                                            try {
+                                                                const objects = await client.request({
+                                                                    command: 'account_objects',
+                                                                    account: holderWallet.address,
+                                                                    type: 'MPToken'
+                                                                });
+                                                                
+                                                                const alreadyAuthorized = objects.result.account_objects.some(
+                                                                    obj => obj.MPTokenIssuanceID === txResult.mptIssuanceId
+                                                                );
+                                                                
+                                                                if (alreadyAuthorized) {
+                                                                    console.log('Already authorized!');
+                                                                    setFormData({
+                                                                        ...formData, 
+                                                                        holderAddress: holderWallet.address,
+                                                                        holderAuthorized: true
+                                                                    });
+                                                                    setError('');
+                                                                    await client.disconnect();
+                                                                    setLoading(false);
+                                                                    return;
+                                                                }
+                                                            } catch (e) {
+                                                                console.log('No existing auth found, will create new');
+                                                            }
+                                                            
+                                                            // Send MPTokenAuthorize
+                                                            console.log('Sending MPTokenAuthorize transaction...');
+                                                            const authTx = {
+                                                                TransactionType: 'MPTokenAuthorize',
+                                                                Account: holderWallet.address,
+                                                                MPTokenIssuanceID: txResult.mptIssuanceId
+                                                            };
+                                                            
+                                                            console.log('Auth tx:', authTx);
+                                                            
+                                                            const prepared = await client.autofill(authTx);
+                                                            const signed = holderWallet.sign(prepared);
+                                                            const result = await client.submitAndWait(signed.tx_blob);
+                                                            
+                                                            console.log('Auth result:', result);
+                                                            
+                                                            if (result.result.meta.TransactionResult === 'tesSUCCESS') {
+                                                                console.log('✅ CHECKPOINT 1 PASSED');
+                                                                setTxResult({
+                                                                    ...txResult,
+                                                                    authHash: result.result.hash
+                                                                });
+                                                                setFormData({
+                                                                    ...formData,
+                                                                    holderAddress: holderWallet.address,
+                                                                    holderAuthorized: true
+                                                                });
+                                                                setError('');
+                                                            } else {
+                                                                throw new Error('Authorization failed: ' + result.result.meta.TransactionResult);
+                                                            }
+                                                            
+                                                            await client.disconnect();
+                                                        } catch (err) {
+                                                            console.error('❌ CHECKPOINT 1 FAILED:', err);
+                                                            setError('❌ Authorization failed: ' + err.message);
+                                                        } finally {
+                                                            setLoading(false);
+                                                        }
+                                                    }}
+                                                    disabled={loading}
+                                                    className="w-full bg-blue-600 text-white py-4 rounded-lg font-bold hover:bg-blue-700 transition disabled:bg-gray-400 text-lg"
+                                                >
+                                                    {loading ? '⌛ Step 1: Authorizing...' : '→ Step 1: Authorize Holder'}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* STEP 2: Issue Tokens (LOCKED UNTIL STEP 1 COMPLETES) */}
+                                    <div className={`border-2 rounded-lg p-4 ${
+                                        formData.holderAuthorized 
+                                            ? 'border-green-500 bg-green-50' 
+                                            : 'border-gray-300 bg-gray-100 opacity-50 pointer-events-none'
+                                    }`}>
+                                        <h3 className="font-bold text-green-900 mb-3 flex items-center">
+                                            <span className={`w-8 h-8 rounded-full flex items-center justify-center mr-2 font-bold ${
+                                                formData.holderAuthorized ? 'bg-green-500 text-white' : 'bg-gray-400 text-gray-200'
+                                            }`}>2</span>
+                                            Issue Tokens {!formData.holderAuthorized && '🔒 Locked'}
+                                        </h3>
+                                        
+                                        {!formData.holderAuthorized && (
+                                            <div className="text-sm text-gray-600 italic">
+                                                <p>⚠️ Complete Step 1 first to unlock this step</p>
+                                            </div>
+                                        )}
+
+                                        {formData.holderAuthorized && (
+                                            <div className="space-y-3">
+                                                <div>
+                                                    <label className="block text-gray-700 font-medium mb-2">
+                                                        Amount to Issue
+                                                        <span className="text-xs text-gray-500 ml-2">
+                                                            (Scale {formData.assetScale}: {formData.assetScale === '2' ? '100 = 1.00' : 'units'})
+                                                        </span>
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="1000000"
+                                                        value={formData.issueAmount || ''}
+                                                        onChange={(e) => setFormData({...formData, issueAmount: e.target.value})}
+                                                        className="w-full p-3 border-2 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono"
+                                                        disabled={loading}
+                                                    />
+                                                    <p className="text-xs text-gray-600 mt-1">
+                                                        {formData.assetScale === '2' 
+                                                            ? 'Example: 100 = $1.00, 100000 = $1,000.00'
+                                                            : formData.assetScale === '0'
+                                                            ? 'Example: 100 = 100 tokens'
+                                                            : 'Enter amount in smallest units'}
+                                                    </p>
+                                                </div>
+
+                                                <div className="bg-white p-3 rounded border border-green-300">
+                                                    <p className="text-xs font-bold text-gray-700 mb-2">Payment Details:</p>
+                                                    <p className="text-xs"><strong>From:</strong> {wallet.address}</p>
+                                                    <p className="text-xs"><strong>To:</strong> {formData.holderAddress}</p>
+                                                    <p className="text-xs"><strong>Token:</strong> {formData.currencyCode} ({txResult.mptIssuanceId})</p>
+                                                </div>
+
+                                                <button
+                                                    onClick={async () => {
+                                                        if (!formData.issueAmount || formData.issueAmount === '0') {
+                                                            setError('❌ Please enter amount to issue');
+                                                            return;
+                                                        }
+                                                        
+                                                        setLoading(true);
+                                                        setError('');
+                                                        
+                                                        try {
+                                                            console.log('=== CHECKPOINT 2: Issue Tokens ===');
+                                                            
+                                                            const client = new xrpl.Client(MAINNET_URL);
+                                                            await client.connect();
+                                                            
+                                                            const paymentTx = {
+                                                                TransactionType: 'Payment',
+                                                                Account: wallet.address,
+                                                                Destination: formData.holderAddress,
+                                                                Amount: {
+                                                                    mpt_issuance_id: txResult.mptIssuanceId,
+                                                                    value: formData.issueAmount
+                                                                }
+                                                            };
+                                                            
+                                                            console.log('Payment tx:', paymentTx);
+                                                            
+                                                            const prepared = await client.autofill(paymentTx);
+                                                            const signed = wallet.sign(prepared);
+                                                            const result = await client.submitAndWait(signed.tx_blob);
+                                                            
+                                                            console.log('Payment result:', result);
+                                                            
+                                                            if (result.result.meta.TransactionResult === 'tesSUCCESS') {
+                                                                console.log('✅ CHECKPOINT 2 PASSED');
+                                                                setTxResult({
+                                                                    ...txResult,
+                                                                    paymentHash: result.result.hash,
+                                                                    paymentSuccess: true
+                                                                });
+                                                                setStep(8);
+                                                            } else {
+                                                                throw new Error('Payment failed: ' + result.result.meta.TransactionResult);
+                                                            }
+                                                            
+                                                            await client.disconnect();
+                                                        } catch (err) {
+                                                            console.error('❌ CHECKPOINT 2 FAILED:', err);
+                                                            setError('❌ Failed to issue tokens: ' + err.message);
+                                                        } finally {
+                                                            setLoading(false);
+                                                        }
+                                                    }}
+                                                    disabled={loading}
+                                                    className="w-full bg-green-600 text-white py-4 rounded-lg font-bold hover:bg-green-700 transition disabled:bg-gray-400 text-lg"
+                                                >
+                                                    {loading ? '⌛ Step 2: Issuing Tokens...' : '→ Step 2: Issue Tokens'}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-4 mt-6">
+                                    <button
+                                        onClick={() => {
+                                            setStep(6);
+                                            setFormData({
+                                                ...formData,
+                                                holderSecretKey: '',
+                                                holderAddress: '',
+                                                holderAuthorized: false,
+                                                issueAmount: ''
+                                            });
+                                        }}
+                                        className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-400 transition"
+                                        disabled={loading}
+                                    >
+                                        ← Back
+                                    </button>
+                                    <button
+                                        onClick={resetForm}
+                                        className="flex-1 bg-gray-500 text-white py-3 rounded-lg font-medium hover:bg-gray-600 transition"
+                                        disabled={loading}
+                                    >
+                                        Skip (Issue Later)
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step 8: Complete Success */}
+                        {step === 8 && txResult && (
+                            <div className="bg-white rounded-lg shadow-lg p-6">
+                                <div className="text-center mb-6">
+                                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <span className="text-4xl">🎉</span>
+                                    </div>
+                                    <h2 className="text-3xl font-bold text-gray-800 mb-2">All Done!</h2>
+                                    <p className="text-gray-600">Your MPT tokens are issued and delivered</p>
+                                </div>
+
+                                <div className="space-y-3 mb-6">
+                                    <div className="p-4 bg-green-50 rounded-lg border-2 border-green-500">
+                                        <p className="text-sm text-green-800 font-bold mb-2">✅ Complete Process:</p>
+                                        <p className="text-xs text-green-700">
+                                            1. Token definition created ✓<br/>
+                                            2. Holder authorized ✓<br/>
+                                            3. Tokens issued and delivered ✓
+                                        </p>
+                                    </div>
+
+                                    {txResult.mptIssuanceId && (
+                                        <div className="p-4 bg-purple-50 rounded-lg">
+                                            <p className="text-xs text-gray-600 mb-1 font-medium">Token ID (MPTokenIssuanceID)</p>
+                                            <p className="font-mono text-xs break-all text-purple-700 font-bold">{txResult.mptIssuanceId}</p>
+                                        </div>
+                                    )}
+
+                                    {txResult.authHash && (
+                                        <div className="p-4 bg-blue-50 rounded-lg">
+                                            <p className="text-xs text-gray-600 mb-1 font-medium">Authorization Transaction</p>
+                                            <p className="font-mono text-xs break-all text-blue-700">{txResult.authHash}</p>
+                                        </div>
+                                    )}
+
+                                    {txResult.paymentHash && (
+                                        <div className="p-4 bg-green-50 rounded-lg">
+                                            <p className="text-xs text-gray-600 mb-1 font-medium">Payment Transaction (Tokens Issued)</p>
+                                            <p className="font-mono text-xs break-all text-green-700">{txResult.paymentHash}</p>
+                                        </div>
+                                    )}
+
+                                    <div className="p-4 bg-gray-50 rounded-lg">
+                                        <p className="text-xs text-gray-600 mb-2 font-medium">Summary</p>
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                            <span className="text-gray-600">Issued To:</span>
+                                            <span className="font-mono break-all">{formData.holderAddress}</span>
+                                            <span className="text-gray-600">Amount:</span>
+                                            <span className="font-bold">{formData.issueAmount} units</span>
+                                            <span className="text-gray-600">Token:</span>
+                                            <span className="font-medium">{formData.currencyCode}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    {txResult.paymentHash && (
+                                        <a
+                                            href={`${MAINNET_EXPLORER}/transactions/${txResult.paymentHash}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition text-center"
+                                        >
+                                            View Payment
+                                        </a>
+                                    )}
+                                    {txResult.hash && (
+                                        <a
+                                            href={`${MAINNET_EXPLORER}/transactions/${txResult.hash}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="bg-purple-600 text-white py-3 rounded-lg font-medium hover:bg-purple-700 transition text-center"
+                                        >
+                                            View Creation
+                                        </a>
+                                    )}
+                                </div>
+
+                                <button
+                                    onClick={resetForm}
+                                    className="w-full mt-4 bg-gray-600 text-white py-3 rounded-lg font-medium hover:bg-gray-700 transition"
+                                >
+                                    Create Another Token
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="text-center mt-8 text-white text-xs">
+                        <p>XRPL Mainnet | XLS-33 & XLS-0089d Compliant</p>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<MPTCreator />);
+    </script>
+</body>
+</html>

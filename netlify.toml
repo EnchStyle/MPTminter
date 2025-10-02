@@ -2,8 +2,12 @@
 
 # Build settings
 [build]
-  # Directory to publish (current directory since it's a single HTML file)
-  publish = "."
+  # Updated to build from frontend directory
+  publish = "frontend/dist"
+  command = "cd frontend && npm install && npm run build"
+
+[build.environment]
+  NODE_VERSION = "18"
 
 # Headers for better security and performance
 [[headers]]
@@ -11,27 +15,29 @@
   [headers.values]
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "no-referrer-when-downgrade"
-    Content-Security-Policy = "default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; img-src 'self' https: data:; connect-src 'self' https: wss:;"
+    Permissions-Policy = "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+    Content-Security-Policy = "default-src 'self' wss://xrplcluster.com wss://s.altnet.rippletest.net https://livenet.xrpl.org https://testnet.xrpl.org; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' wss://xrplcluster.com wss://s.altnet.rippletest.net https://livenet.xrpl.org https://testnet.xrpl.org;"
 
-# Redirects
+# SPA redirect for client-side routing
 [[redirects]]
-  from = "/mpt-creator-clean.html"
+  from = "/*"
   to = "/index.html"
-  status = 301
-
-[[redirects]]
-  from = "/mpt-creator-clean"
-  to = "/index.html"
-  status = 301
+  status = 200
 
 # Cache static assets
 [[headers]]
   for = "/*.js"
   [headers.values]
-    Cache-Control = "public, max-age=604800"
+    Cache-Control = "public, max-age=604800, immutable"
 
 [[headers]]
   for = "/*.css"
   [headers.values]
-    Cache-Control = "public, max-age=604800"
+    Cache-Control = "public, max-age=604800, immutable"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

@@ -48,9 +48,27 @@ A comprehensive web-based tool for creating and managing Multi-Purpose Tokens (M
    - No installation required
 
 ### Option 2: Run Locally
-   - Download or clone this repository
-   - Open `index.html` in your web browser
-   - No build process required
+
+#### Quick Start (Unix/Linux/macOS):
+```bash
+./start.sh
+```
+
+#### Manual Setup:
+```bash
+# Clone this repository
+git clone https://github.com/yourusername/mpt-minter.git
+cd mpt-minter
+
+# Install dependencies
+cd frontend
+npm install
+
+# Start development server
+npm run dev
+```
+
+The app will open at http://localhost:3000
 
 2. **Connect Your Wallet**
    - Enter your wallet's secret key (starts with 's')
@@ -158,6 +176,31 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Issues**: [GitHub Issues](https://github.com/EnchStyle/MPTminter/issues)
 - **Documentation**: [XRPL MPT Docs](https://xrpl.org/docs/concepts/tokens/fungible-tokens/multi-purpose-tokens)
 - **Community**: [XRPL Discord](https://discord.gg/xrpl)
+
+## 🏗️ Building for Production
+
+```bash
+cd frontend
+npm run build
+```
+
+The production files will be in `frontend/dist/` ready for deployment.
+
+## 📁 Project Structure
+
+```
+mpt-minter/
+├── frontend/              # React application
+│   ├── src/
+│   │   ├── components/   # UI components
+│   │   ├── services/     # Business logic
+│   │   ├── hooks/        # Custom React hooks
+│   │   └── utils/        # Utilities
+│   └── package.json
+├── old-version/          # Original HTML files (backup)
+├── netlify.toml          # Deployment configuration
+└── start.sh             # Quick start script
+```
 
 ---
 

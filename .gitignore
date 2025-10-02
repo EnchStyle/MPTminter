@@ -45,7 +45,7 @@ local-storage-backup.json
 coverage/
 
 # Production files (if you want to keep them separate)
-mpt-creator-production*.html
+# Removed - we're keeping old files in old-version/ for reference
 
 # Sensitive data
 secrets/

@@ -17,11 +17,13 @@ const ManageTokens = () => {
     const navigate = useNavigate();
 
     useEffect(() => {
+        console.log('ManageTokens component mounted');
         const savedData = sessionService.getWalletData();
         if (savedData && savedData.seed) {
             try {
                 const wallet = xrpl.Wallet.fromSeed(savedData.seed);
                 setWallet(wallet);
+                console.log('Wallet restored in ManageTokens');
             } catch (error) {
                 console.error('Failed to restore wallet:', error);
             }

@@ -219,8 +219,11 @@ function App() {
             // Validate prerequisites
             validationService.validatePrerequisites(activeStep + 1, { wallet, txState });
 
+            // Skip validation for wallet connection step if wallet is already connected
+            const shouldValidate = !(activeStep === 0 && wallet);
+            
             // Validate current step
-            if (!validateStep(activeStep + 1, formData)) {
+            if (shouldValidate && !validateStep(activeStep + 1, formData)) {
                 showSnackbar('Please fix validation errors before proceeding', 'error');
                 return;
             }

@@ -542,12 +542,12 @@ function App() {
         switch (step) {
             case 0: return wallet !== null;
             case 1: return formData.currencyCode && formData.name && formData.description;
-            case 2: return true;
-            case 3: return true;
+            case 2: return activeStep > 2; // Token Config completed when moved past it
+            case 3: return activeStep > 3; // Metadata completed when moved past it
             case 4: return txState.createComplete;
             case 5: return txState.createComplete;
             case 6: return txState.issueComplete;
-            case 7: return true;
+            case 7: return txState.issueComplete; // Completion step
             default: return false;
         }
     };

@@ -514,9 +514,7 @@ function App() {
             <Card 
                 elevation={3} 
                 sx={{ 
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    backdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    backgroundColor: '#ffffff',
                     overflow: 'visible'
                 }}
             >
@@ -553,8 +551,9 @@ function App() {
                     <Card 
                         sx={{ 
                             mb: 4, 
-                            background: 'rgba(255, 255, 255, 0.03)',
-                            border: '1px solid rgba(255, 255, 255, 0.05)'
+                            backgroundColor: '#f5f5f5',
+                            boxShadow: 'none',
+                            border: '1px solid #e0e0e0'
                         }}
                     >
                         <CardContent sx={{ py: { xs: 2, sm: 3 } }}>

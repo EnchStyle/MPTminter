@@ -2,7 +2,7 @@ import { createTheme } from '@mui/material/styles';
 
 export const theme = createTheme({
     palette: {
-        mode: 'dark',
+        mode: 'light',
         primary: {
             main: '#667eea',
             light: '#9bb5ff',
@@ -31,10 +31,14 @@ export const theme = createTheme({
             dark: '#dc2626'
         },
         background: {
-            default: '#121212',
-            paper: 'rgba(255, 255, 255, 0.05)'
+            default: '#f8fafc',
+            paper: '#ffffff'
         },
-        divider: 'rgba(255, 255, 255, 0.12)'
+        divider: 'rgba(0, 0, 0, 0.12)',
+        grey: {
+            50: '#fafafa',
+            100: '#f5f5f5'
+        }
     },
     typography: {
         fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
@@ -85,10 +89,10 @@ export const theme = createTheme({
                 root: { 
                     marginBottom: 0,
                     '& .MuiInputBase-root': {
-                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                        backgroundColor: 'rgba(0, 0, 0, 0.02)',
                     },
                     '& .MuiInputBase-root:hover': {
-                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                        backgroundColor: 'rgba(0, 0, 0, 0.04)',
                     },
                 }
             }
@@ -101,9 +105,8 @@ export const theme = createTheme({
             styleOverrides: {
                 root: {
                     backgroundImage: 'none',
-                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                    backdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    backgroundColor: '#ffffff',
+                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
                     overflow: 'visible',
                 }
             }

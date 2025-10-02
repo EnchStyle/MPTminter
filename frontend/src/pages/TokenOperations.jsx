@@ -125,9 +125,9 @@ const TokenOperations = () => {
             
             // Handle specific error cases
             if (errorMessage.includes('Invalid field TransactionType')) {
-                errorMessage = 'MPTokenIssuanceSet is not yet implemented in XLS-0033. The lock/unlock feature is planned but not currently available on any XRPL network.';
+                errorMessage = 'MPTokenIssuanceSet may not be activated on mainnet yet.';
             } else if (errorMessage.includes('NotEnabled')) {
-                errorMessage = 'MPT feature is not enabled on this network. Please use an MPT-enabled testnet or wait for mainnet activation.';
+                errorMessage = 'This MPT feature is not yet enabled on mainnet.';
             }
             
             showSnackbar(`Failed to ${lock ? 'lock' : 'unlock'} tokens: ${errorMessage}`, 'error');
@@ -167,9 +167,9 @@ const TokenOperations = () => {
             
             // Handle specific error cases
             if (errorMessage.includes('Invalid field TransactionType')) {
-                errorMessage = 'MPTokenIssuanceDestroy is not yet implemented in XLS-0033. This feature is planned but not currently available on any XRPL network.';
+                errorMessage = 'MPTokenIssuanceDestroy may not be activated on mainnet yet.';
             } else if (errorMessage.includes('NotEnabled')) {
-                errorMessage = 'MPT feature is not enabled on this network. Please use an MPT-enabled testnet or wait for mainnet activation.';
+                errorMessage = 'This MPT feature is not yet enabled on mainnet.';
             }
             
             showSnackbar(`Failed to destroy issuance: ${errorMessage}`, 'error');
@@ -218,11 +218,10 @@ const TokenOperations = () => {
                 </Typography>
             </Box>
 
-            <Alert severity="warning" sx={{ mb: 3 }}>
+            <Alert severity="info" sx={{ mb: 3 }}>
                 <Typography variant="body2">
-                    <strong>Network Notice:</strong> MPT features including MPTokenIssuanceSet and MPTokenIssuanceDestroy 
-                    require a network with full MPT support. Make sure you're connected to the XRPL Devnet for testing these features.
-                    Current network: {window.location.hostname.includes('localhost') ? 'Development' : 'Production'}
+                    <strong>Note:</strong> MPTokenIssuanceSet (lock/unlock) and MPTokenIssuanceDestroy features 
+                    may not be fully activated on mainnet yet. If these operations fail, it may be due to pending network support.
                 </Typography>
             </Alert>
 

@@ -23,15 +23,19 @@ import {
     ListItemText,
     ListItemSecondaryAction,
     IconButton,
-    Tooltip
+    Tooltip,
+    Avatar
 } from '@mui/material';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import InfoIcon from '@mui/icons-material/Info';
+import TokenIcon from '@mui/icons-material/Token';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { xrplService } from '../services/xrplService';
 import { sessionService } from '../services/sessionService';
+import { metadataService } from '../services/metadataService';
 import * as xrpl from 'xrpl';
 
 const TokenOperations = () => {
@@ -63,7 +67,15 @@ const TokenOperations = () => {
         setLoading(true);
         try {
             const issuances = await xrplService.getMPTokenIssuances(wallet.classicAddress);
-            setIssuances(issuances);
+            
+            // Parse metadata for each issuance
+            const issuancesWithMetadata = issuances.map(issuance => {
+                const metadata = issuance.MPTokenMetadata ? 
+                    metadataService.parseMetadata(issuance.MPTokenMetadata) : null;
+                return { ...issuance, metadata };
+            });
+            
+            setIssuances(issuancesWithMetadata);
         } catch (error) {
             console.error('Failed to load issuances:', error);
             showSnackbar('Failed to load token issuances', 'error');
@@ -78,6 +90,11 @@ const TokenOperations = () => {
 
     const showSnackbar = (message, severity = 'info') => {
         setSnackbar({ open: true, message, severity });
+    };
+
+    const copyToClipboard = (text, label = 'ID') => {
+        navigator.clipboard.writeText(text);
+        showSnackbar(`${label} copied to clipboard`, 'success');
     };
 
     const handleLockUnlock = async (issuance, lock) => {
@@ -206,17 +223,39 @@ const TokenOperations = () => {
                         <List>
                             {issuances.map((issuance) => {
                                 const flags = formatFlags(issuance.Flags || 0);
-                                const isLocked = flags.includes('Locked');
+                                const isLocked = issuance.CurrentFlags && (issuance.CurrentFlags & 0x0001);
                                 const canLock = flags.includes('CanLock');
+                                const metadata = issuance.metadata;
 
                                 return (
-                                    <ListItem key={issuance.MPTokenIssuanceID} divider>
-                                        <ListItemText
-                                            primary={
-                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                    <Typography variant="subtitle1">
-                                                        {issuance.AssetScale ? `Scale: ${issuance.AssetScale}` : 'No scale'}
+                                    <ListItem key={issuance.MPTokenIssuanceID} divider sx={{ py: 2 }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'flex-start', width: '100%', pr: 2 }}>
+                                            <Avatar 
+                                                sx={{ 
+                                                    bgcolor: metadata?.iconUrl ? 'transparent' : 'primary.main',
+                                                    mr: 2,
+                                                    width: 56,
+                                                    height: 56
+                                                }}
+                                                src={metadata?.iconUrl}
+                                            >
+                                                {!metadata?.iconUrl && (
+                                                    metadata?.currencyCode?.substring(0, 2) || <TokenIcon />
+                                                )}
+                                            </Avatar>
+                                            <Box sx={{ flexGrow: 1 }}>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                                    <Typography variant="h6">
+                                                        {metadata?.name || 'Unnamed Token'}
                                                     </Typography>
+                                                    {metadata?.currencyCode && (
+                                                        <Chip 
+                                                            label={metadata.currencyCode}
+                                                            size="small"
+                                                            color="primary"
+                                                            variant="outlined"
+                                                        />
+                                                    )}
                                                     {isLocked && (
                                                         <Chip 
                                                             label="LOCKED" 
@@ -226,55 +265,113 @@ const TokenOperations = () => {
                                                         />
                                                     )}
                                                 </Box>
-                                            }
-                                            secondary={
-                                                <Box>
-                                                    <Typography variant="caption" display="block">
-                                                        ID: {issuance.MPTokenIssuanceID}
+                                                
+                                                {metadata?.description && (
+                                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                                        {metadata.description}
                                                     </Typography>
-                                                    <Typography variant="caption" display="block">
-                                                        Max Amount: {issuance.MaximumAmount || 'Unlimited'}
+                                                )}
+
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        ID: {issuance.MPTokenIssuanceID.substring(0, 16)}...
                                                     </Typography>
-                                                    <Box sx={{ mt: 0.5 }}>
-                                                        {flags.map(flag => (
-                                                            <Chip 
-                                                                key={flag}
-                                                                label={flag} 
-                                                                size="small" 
-                                                                sx={{ mr: 0.5, mb: 0.5 }}
-                                                            />
-                                                        ))}
-                                                    </Box>
+                                                    <Tooltip title="Copy full ID">
+                                                        <IconButton 
+                                                            size="small" 
+                                                            onClick={() => copyToClipboard(issuance.MPTokenIssuanceID)}
+                                                        >
+                                                            <ContentCopyIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </Tooltip>
                                                 </Box>
-                                            }
-                                        />
+
+                                                <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                                                    <Grid item xs={12} sm={6} md={3}>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            Scale (Decimals)
+                                                        </Typography>
+                                                        <Typography variant="body2">
+                                                            {issuance.AssetScale || 0}
+                                                        </Typography>
+                                                    </Grid>
+                                                    <Grid item xs={12} sm={6} md={3}>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            Max Supply
+                                                        </Typography>
+                                                        <Typography variant="body2">
+                                                            {issuance.MaximumAmount || 'Unlimited'}
+                                                        </Typography>
+                                                    </Grid>
+                                                    <Grid item xs={12} sm={6} md={3}>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            Transfer Fee
+                                                        </Typography>
+                                                        <Typography variant="body2">
+                                                            {issuance.TransferFee ? `${(issuance.TransferFee / 1000).toFixed(3)}%` : '0%'}
+                                                        </Typography>
+                                                    </Grid>
+                                                    <Grid item xs={12} sm={6} md={3}>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            Outstanding Supply
+                                                        </Typography>
+                                                        <Typography variant="body2">
+                                                            {issuance.OutstandingAmount || '0'}
+                                                        </Typography>
+                                                    </Grid>
+                                                </Grid>
+
+                                                <Box sx={{ mt: 1 }}>
+                                                    {flags.map(flag => (
+                                                        <Chip 
+                                                            key={flag}
+                                                            label={flag} 
+                                                            size="small" 
+                                                            sx={{ mr: 0.5, mb: 0.5 }}
+                                                            color={
+                                                                flag === 'RequireAuth' ? 'warning' :
+                                                                flag === 'CanTrade' || flag === 'CanTransfer' ? 'success' :
+                                                                'default'
+                                                            }
+                                                        />
+                                                    ))}
+                                                </Box>
+                                            </Box>
+                                        </Box>
+                                        
                                         <ListItemSecondaryAction>
-                                            <Box sx={{ display: 'flex', gap: 1 }}>
+                                            <Box sx={{ display: 'flex', gap: 1, flexDirection: 'column', alignItems: 'flex-end' }}>
                                                 {canLock && (
                                                     <Tooltip title={isLocked ? "Unlock all tokens" : "Lock all tokens"}>
-                                                        <IconButton
+                                                        <Button
                                                             onClick={() => {
                                                                 setSelectedIssuance(issuance);
                                                                 setOperation(isLocked ? 'unlock' : 'lock');
                                                             }}
                                                             disabled={loading}
                                                             color={isLocked ? "error" : "primary"}
+                                                            startIcon={isLocked ? <LockIcon /> : <LockOpenIcon />}
+                                                            size="small"
+                                                            variant="outlined"
                                                         >
-                                                            {isLocked ? <LockIcon /> : <LockOpenIcon />}
-                                                        </IconButton>
+                                                            {isLocked ? "Unlock" : "Lock"}
+                                                        </Button>
                                                     </Tooltip>
                                                 )}
                                                 <Tooltip title="Destroy token issuance">
-                                                    <IconButton
+                                                    <Button
                                                         onClick={() => {
                                                             setSelectedIssuance(issuance);
                                                             setConfirmDialog({ open: true, action: 'destroy' });
                                                         }}
                                                         disabled={loading}
                                                         color="error"
+                                                        startIcon={<DeleteForeverIcon />}
+                                                        size="small"
+                                                        variant="text"
                                                     >
-                                                        <DeleteForeverIcon />
-                                                    </IconButton>
+                                                        Destroy
+                                                    </Button>
                                                 </Tooltip>
                                             </Box>
                                         </ListItemSecondaryAction>
@@ -295,6 +392,13 @@ const TokenOperations = () => {
                     {operation === 'lock' ? 'Lock All Tokens' : 'Unlock All Tokens'}
                 </DialogTitle>
                 <DialogContent>
+                    {selectedIssuance?.metadata && (
+                        <Box sx={{ mb: 2 }}>
+                            <Typography variant="subtitle1">
+                                {selectedIssuance.metadata.name} ({selectedIssuance.metadata.currencyCode})
+                            </Typography>
+                        </Box>
+                    )}
                     <Alert severity="warning" sx={{ mb: 2 }}>
                         This will {operation} all tokens for this issuance. Token holders will 
                         {operation === 'lock' ? ' not' : ''} be able to transfer their tokens.
@@ -323,6 +427,18 @@ const TokenOperations = () => {
             >
                 <DialogTitle>Destroy Token Issuance</DialogTitle>
                 <DialogContent>
+                    {selectedIssuance?.metadata && (
+                        <Box sx={{ mb: 2 }}>
+                            <Typography variant="subtitle1">
+                                {selectedIssuance.metadata.name} ({selectedIssuance.metadata.currencyCode})
+                            </Typography>
+                            {selectedIssuance.metadata.description && (
+                                <Typography variant="body2" color="text.secondary">
+                                    {selectedIssuance.metadata.description}
+                                </Typography>
+                            )}
+                        </Box>
+                    )}
                     <Alert severity="error" sx={{ mb: 2 }}>
                         This action is irreversible! The token issuance will be permanently destroyed.
                     </Alert>

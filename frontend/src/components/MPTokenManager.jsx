@@ -20,7 +20,9 @@ import {
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import TokenIcon from '@mui/icons-material/Token';
 import { xrplService } from '../services/xrplService';
+import { metadataService } from '../services/metadataService';
 
 const MPTokenManager = React.memo(({ wallet, isStandalone = false }) => {
     const [loading, setLoading] = useState(false);
@@ -42,7 +44,15 @@ const MPTokenManager = React.memo(({ wallet, isStandalone = false }) => {
         try {
             // Load tokens where this wallet is the issuer
             const issuances = await xrplService.getMPTokenIssuances(wallet.classicAddress);
-            setIssuerTokens(issuances);
+            
+            // Parse metadata for each issuance
+            const issuancesWithMetadata = issuances.map(issuance => {
+                const metadata = issuance.MPTokenMetadata ? 
+                    metadataService.parseMetadata(issuance.MPTokenMetadata) : null;
+                return { ...issuance, metadata };
+            });
+            
+            setIssuerTokens(issuancesWithMetadata);
             
             // Load tokens where this wallet is a holder
             const holdings = await xrplService.getAllMPTokens(wallet.classicAddress);
@@ -194,41 +204,65 @@ const MPTokenManager = React.memo(({ wallet, isStandalone = false }) => {
                         <Alert severity="info">You haven't issued any MPTokens yet</Alert>
                     ) : (
                         <List>
-                            {issuerTokens.map((token, idx) => (
-                                <ListItem key={idx} divider>
-                                    <ListItemText
-                                        primary={
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                <Typography variant="body1" noWrap sx={{ maxWidth: '70%' }}>
-                                                    {token.MPTokenIssuanceID}
-                                                </Typography>
-                                                <Tooltip title="Copy ID">
-                                                    <IconButton size="small" onClick={() => copyToClipboard(token.MPTokenIssuanceID)}>
-                                                        <ContentCopyIcon fontSize="small" />
-                                                    </IconButton>
-                                                </Tooltip>
-                                            </Box>
-                                        }
-                                        secondary={
-                                            <Box>
-                                                <Typography variant="caption" display="block">
-                                                    Max Amount: {token.MaximumAmount || 'Unlimited'}
-                                                </Typography>
-                                                <Typography variant="caption" display="block">
-                                                    Transfer Fee: {token.TransferFee ? `${token.TransferFee / 1000}%` : '0%'}
-                                                </Typography>
-                                                {token.Flags && (
-                                                    <Box sx={{ mt: 0.5 }}>
-                                                        {(token.Flags & 0x0001) && <Chip label="CanLock" size="small" sx={{ mr: 0.5 }} />}
-                                                        {(token.Flags & 0x0002) && <Chip label="RequireAuth" size="small" sx={{ mr: 0.5 }} />}
-                                                        {(token.Flags & 0x0008) && <Chip label="CanClawback" size="small" />}
+                            {issuerTokens.map((token, idx) => {
+                                const metadata = token.metadata;
+                                return (
+                                    <ListItem key={idx} divider>
+                                        <ListItemText
+                                            primary={
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                    <TokenIcon sx={{ color: 'primary.main' }} />
+                                                    <Typography variant="subtitle1">
+                                                        {metadata?.name || 'Unnamed Token'}
+                                                    </Typography>
+                                                    {metadata?.currencyCode && (
+                                                        <Chip 
+                                                            label={metadata.currencyCode}
+                                                            size="small"
+                                                            color="primary"
+                                                        />
+                                                    )}
+                                                </Box>
+                                            }
+                                            secondary={
+                                                <Box>
+                                                    {metadata?.description && (
+                                                        <Typography variant="body2" sx={{ mb: 0.5 }}>
+                                                            {metadata.description}
+                                                        </Typography>
+                                                    )}
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            ID: {token.MPTokenIssuanceID.substring(0, 16)}...
+                                                        </Typography>
+                                                        <Tooltip title="Copy ID">
+                                                            <IconButton size="small" onClick={() => copyToClipboard(token.MPTokenIssuanceID)}>
+                                                                <ContentCopyIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Tooltip>
                                                     </Box>
-                                                )}
-                                            </Box>
-                                        }
-                                    />
-                                </ListItem>
-                            ))}
+                                                    <Typography variant="caption" display="block">
+                                                        Max Amount: {token.MaximumAmount || 'Unlimited'}
+                                                    </Typography>
+                                                    <Typography variant="caption" display="block">
+                                                        Transfer Fee: {token.TransferFee ? `${token.TransferFee / 1000}%` : '0%'}
+                                                    </Typography>
+                                                    {token.Flags && (
+                                                        <Box sx={{ mt: 0.5 }}>
+                                                            {(token.Flags & 0x0001) && <Chip label="CanLock" size="small" sx={{ mr: 0.5 }} />}
+                                                            {(token.Flags & 0x0002) && <Chip label="RequireAuth" size="small" sx={{ mr: 0.5 }} />}
+                                                            {(token.Flags & 0x0004) && <Chip label="CanEscrow" size="small" sx={{ mr: 0.5 }} />}
+                                                            {(token.Flags & 0x0008) && <Chip label="CanTrade" size="small" sx={{ mr: 0.5 }} />}
+                                                            {(token.Flags & 0x0010) && <Chip label="CanTransfer" size="small" sx={{ mr: 0.5 }} />}
+                                                            {(token.Flags & 0x0020) && <Chip label="CanClawback" size="small" />}
+                                                        </Box>
+                                                    )}
+                                                </Box>
+                                            }
+                                        />
+                                    </ListItem>
+                                );
+                            })}
                         </List>
                     )}
                 </Box>

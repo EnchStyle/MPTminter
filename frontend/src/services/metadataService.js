@@ -36,6 +36,41 @@ class MetadataService {
         return hexMetadata;
     }
 
+    parseMetadata(hexString) {
+        if (!hexString || hexString === '') {
+            return null;
+        }
+
+        try {
+            // Convert hex string to bytes
+            const bytes = [];
+            for (let i = 0; i < hexString.length; i += 2) {
+                bytes.push(parseInt(hexString.substr(i, 2), 16));
+            }
+            
+            // Convert bytes to string
+            const decoder = new TextDecoder();
+            const jsonStr = decoder.decode(new Uint8Array(bytes));
+            
+            // Parse JSON
+            const metadata = JSON.parse(jsonStr);
+            
+            // Return formatted metadata
+            return {
+                currencyCode: metadata.c || 'Unknown',
+                name: metadata.n || metadata.a || 'Unnamed Token',
+                description: metadata.d || '',
+                iconUrl: metadata.i || '',
+                assetClass: metadata.cl || '',
+                assetSubclass: metadata.cs || '',
+                weblinks: metadata.w || []
+            };
+        } catch (error) {
+            console.error('Failed to parse metadata:', error);
+            return null;
+        }
+    }
+
     getAssetClasses() {
         return [
             { value: 'rwa', label: 'Real World Asset (RWA)' },

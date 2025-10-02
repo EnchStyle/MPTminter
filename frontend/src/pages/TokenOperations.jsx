@@ -67,12 +67,16 @@ const TokenOperations = () => {
         setLoading(true);
         try {
             const issuances = await xrplService.getMPTokenIssuances(wallet.classicAddress);
+            console.log('Raw issuances from XRPL:', issuances);
             
             // Parse metadata for each issuance
             const issuancesWithMetadata = issuances.map(issuance => {
+                console.log('Individual issuance object:', issuance);
                 const metadata = issuance.MPTokenMetadata ? 
                     metadataService.parseMetadata(issuance.MPTokenMetadata) : null;
-                return { ...issuance, metadata };
+                // The ID might be in a different field
+                const id = issuance.MPTokenIssuanceID || issuance.index || issuance.ID;
+                return { ...issuance, metadata, MPTokenIssuanceID: id };
             });
             
             setIssuances(issuancesWithMetadata);
@@ -167,14 +171,22 @@ const TokenOperations = () => {
             console.error('Failed to destroy issuance - Full error:', error);
             console.error('Error response:', error.response);
             console.error('Error data:', error.data);
+            console.error('Transaction result:', error.txResult);
             
             let errorMessage = error.message || 'Unknown error';
+            
+            // Show transaction hash if available
+            if (error.txHash) {
+                errorMessage += ` (TX: ${error.txHash})`;
+                console.log('Failed transaction hash:', error.txHash);
+                console.log('View on explorer:', xrplService.getExplorerUrl(error.txHash));
+            }
             
             // Handle specific error cases
             if (errorMessage.includes('Invalid field TransactionType')) {
                 // Log the exact error for debugging
                 console.error('TransactionType error - exact message:', errorMessage);
-                errorMessage = 'MPTokenIssuanceDestroy may not be activated on mainnet yet.';
+                errorMessage += ' - MPTokenIssuanceDestroy may not be activated on mainnet yet.';
             } else if (errorMessage.includes('NotEnabled')) {
                 errorMessage = 'This MPT feature is not yet enabled on mainnet.';
             } else if (errorMessage.includes('temDISABLED')) {

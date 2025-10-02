@@ -98,10 +98,34 @@ class XRPLService {
 
     async submitTransaction(tx, wallet) {
         const client = await this.getClient();
-        const prepared = await client.autofill(tx);
-        const signed = wallet.sign(prepared);
-        const result = await client.submitAndWait(signed.tx_blob);
-        return result;
+        
+        try {
+            const prepared = await client.autofill(tx);
+            const signed = wallet.sign(prepared);
+            
+            // First try to submit
+            const submitResult = await client.submit(signed.tx_blob);
+            console.log('Submit result:', submitResult);
+            
+            if (submitResult.result.engine_result_code !== 0) {
+                // Return the failed transaction details
+                const error = new Error(submitResult.result.engine_result_message);
+                error.txResult = submitResult.result;
+                error.txHash = submitResult.result.tx_json?.hash;
+                throw error;
+            }
+            
+            // If submitted successfully, wait for validation
+            const result = await client.waitForTransaction(signed.tx_blob);
+            return result;
+        } catch (error) {
+            console.error('Transaction submission error:', error);
+            // Re-throw with transaction details
+            if (error.data) {
+                error.txResult = error.data;
+            }
+            throw error;
+        }
     }
 
     async checkMPTAuthorization(holderAddress, mptIssuanceId) {

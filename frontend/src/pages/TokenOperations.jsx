@@ -227,12 +227,6 @@ const TokenOperations = () => {
                 </Typography>
             </Box>
 
-            <Alert severity="info" sx={{ mb: 3 }}>
-                <Typography variant="body2">
-                    <strong>Note:</strong> MPTokenIssuanceSet (lock/unlock) and MPTokenIssuanceDestroy features 
-                    may not be fully activated on mainnet yet. If these operations fail, it may be due to pending network support.
-                </Typography>
-            </Alert>
 
             <Card sx={{ mb: 3 }}>
                 <CardContent>

@@ -35,6 +35,11 @@ const WalletManager = ({ onWalletChange }) => {
     const [wallet, setWallet] = useState(null);
     const [accountInfo, setAccountInfo] = useState(null);
     const [connectionAttempt, setConnectionAttempt] = useState(0);
+    
+    // Determine which network we're connected to
+    const networkUrl = xrplService.mainnetUrl;
+    const networkName = networkUrl.includes('devnet') ? 'Devnet' : 
+                       networkUrl.includes('testnet') ? 'Testnet' : 'Mainnet';
 
     // Check for saved wallet on mount
     React.useEffect(() => {
@@ -179,6 +184,12 @@ const WalletManager = ({ onWalletChange }) => {
             {/* Wallet Display/Connect Button */}
             {wallet ? (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Chip
+                        label={networkName}
+                        color={networkName === 'Devnet' ? 'success' : 'default'}
+                        size="small"
+                        variant="outlined"
+                    />
                     <Chip
                         icon={<AccountBalanceWalletIcon />}
                         label={

@@ -218,10 +218,11 @@ const TokenOperations = () => {
                 </Typography>
             </Box>
 
-            <Alert severity="info" sx={{ mb: 3 }}>
+            <Alert severity="warning" sx={{ mb: 3 }}>
                 <Typography variant="body2">
-                    <strong>Note:</strong> According to XLS-0033 specification, MPTokenIssuanceSet (lock/unlock) and 
-                    MPTokenIssuanceDestroy are not yet implemented on XRPL. These features are planned for future releases.
+                    <strong>Network Notice:</strong> MPT features including MPTokenIssuanceSet and MPTokenIssuanceDestroy 
+                    require a network with full MPT support. Make sure you're connected to the XRPL Devnet for testing these features.
+                    Current network: {window.location.hostname.includes('localhost') ? 'Development' : 'Production'}
                 </Typography>
             </Alert>
 

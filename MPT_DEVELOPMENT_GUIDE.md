@@ -51,14 +51,15 @@ MPT Minter is a web application for creating and managing Multi-Purpose Tokens (
    - Flag: tfMPTUnauthorize (0x0001)
 
 3. **MPTokenIssuanceSet** (Type: 56)
-   - **Status: Not yet implemented in XRPL**
-   - Purpose: Would allow locking/unlocking tokens
-   - Note: UI is ready, but transaction will fail until XRPL support is added
+   - **Status: Testing required on Devnet**
+   - Purpose: Allows locking/unlocking tokens
+   - Note: May not be available on mainnet yet
 
 4. **MPTokenIssuanceDestroy** (Type: 55)
-   - **Status: Not yet implemented in XRPL**
-   - Purpose: Would destroy token issuance (only if no outstanding tokens)
-   - Note: UI is ready, but transaction will fail until XRPL support is added
+   - **Status: Testing required on Devnet**
+   - Purpose: Destroys token issuance (only if no outstanding tokens)
+   - Note: May not be available on mainnet yet
+   - Requirements: Must be issuer, no outstanding tokens
 
 ### MPT Flags
 ```javascript

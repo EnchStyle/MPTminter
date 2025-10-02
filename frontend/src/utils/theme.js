@@ -89,11 +89,16 @@ export const theme = createTheme({
                 root: { 
                     marginBottom: 0,
                     '& .MuiInputBase-root': {
-                        backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                        backgroundColor: '#ffffff',
+                        border: '1px solid rgba(0, 0, 0, 0.23)',
                     },
                     '& .MuiInputBase-root:hover': {
-                        backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                        backgroundColor: '#ffffff',
+                        borderColor: 'rgba(0, 0, 0, 0.87)',
                     },
+                    '& .MuiInputBase-root.Mui-focused': {
+                        backgroundColor: '#ffffff',
+                    }
                 }
             }
         },
@@ -132,9 +137,24 @@ export const theme = createTheme({
                 label: {
                     '&.Mui-active': {
                         color: '#667eea',
+                        fontWeight: 600,
                     },
                     '&.Mui-completed': {
                         color: '#10b981',
+                        fontWeight: 600,
+                    },
+                },
+            },
+        },
+        MuiStepIcon: {
+            styleOverrides: {
+                root: {
+                    color: 'rgba(0, 0, 0, 0.38)',
+                    '&.Mui-completed': {
+                        color: '#10b981',
+                    },
+                    '&.Mui-active': {
+                        color: '#667eea',
                     },
                 },
             },

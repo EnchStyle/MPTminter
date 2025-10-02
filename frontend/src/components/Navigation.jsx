@@ -22,9 +22,13 @@ import AddCircleIcon from '@mui/icons-material/AddCircle';
 import SettingsIcon from '@mui/icons-material/Settings';
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import WalletManager from './WalletManager';
+import { sessionService } from '../services/sessionService';
 
 const Navigation = ({ children }) => {
     const [drawerOpen, setDrawerOpen] = useState(false);
+    const [wallet, setWallet] = useState(null);
+    const [accountInfo, setAccountInfo] = useState(null);
     const navigate = useNavigate();
     const location = useLocation();
     const theme = useTheme();
@@ -64,6 +68,18 @@ const Navigation = ({ children }) => {
         setDrawerOpen(false);
     };
 
+    const handleWalletChange = (newWallet, newAccountInfo) => {
+        setWallet(newWallet);
+        setAccountInfo(newAccountInfo);
+        
+        // Save or clear session
+        if (newWallet) {
+            sessionService.saveWalletData({ seed: newWallet.seed });
+        } else {
+            sessionService.clearSession();
+        }
+    };
+
     const drawerWidth = 280;
 
     const drawer = (
@@ -74,6 +90,13 @@ const Navigation = ({ children }) => {
                     MPT Minter
                 </Typography>
             </Toolbar>
+            <Divider />
+            
+            {/* Wallet Manager in Drawer */}
+            <Box sx={{ p: 2, mb: 2 }}>
+                <WalletManager onWalletChange={handleWalletChange} />
+            </Box>
+            
             <Divider />
             <List>
                 {menuItems.map((item) => (
@@ -130,6 +153,7 @@ const Navigation = ({ children }) => {
                         <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
                             MPT Minter
                         </Typography>
+                        <WalletManager onWalletChange={handleWalletChange} />
                     </Toolbar>
                 </AppBar>
             )}

@@ -33,6 +33,7 @@ import { useFormValidation } from './hooks/useFormValidation';
 
 // Components
 import WalletConnectionStep from './components/steps/WalletConnectionStep';
+import WalletConnectionStepSimple from './components/steps/WalletConnectionStepSimple';
 import TokenInfoStep from './components/steps/TokenInfoStep';
 import TokenConfigStep from './components/steps/TokenConfigStep';
 import MetadataStep from './components/steps/MetadataStep';
@@ -100,9 +101,26 @@ function App() {
     const [error, setError] = useState(null);
     const [warnings, setWarnings] = useState({});
 
-    // Check for resume data on mount
+    // Check for wallet or resume data on mount
     useEffect(() => {
-        if (resumeData && !wallet) {
+        const savedWalletData = sessionService.getWalletData();
+        if (savedWalletData && savedWalletData.seed && !wallet) {
+            // Auto-connect wallet if saved
+            const autoConnect = async () => {
+                try {
+                    const savedWallet = xrpl.Wallet.fromSeed(savedWalletData.seed);
+                    setWallet(savedWallet);
+                    
+                    await xrplService.getClient();
+                    const info = await xrplService.getAccountInfo(savedWallet.classicAddress);
+                    setAccountInfo(info);
+                } catch (err) {
+                    console.error('Auto-connect failed:', err);
+                    sessionService.clearSession();
+                }
+            };
+            autoConnect();
+        } else if (resumeData && !wallet) {
             setResumeDialogOpen(true);
         }
     }, [resumeData, wallet]);
@@ -162,14 +180,15 @@ function App() {
             const error = validationService.validateSecretKey(secret);
             if (error) throw new Error(error);
 
-            await connect();
-
+            // Create wallet first
             const walletFromSeed = xrpl.Wallet.fromSeed(secret);
             setWallet(walletFromSeed);
             
             // Save wallet data for other pages
             sessionService.saveWalletData({ seed: secret });
 
+            // Then connect to XRPL and get account info
+            await xrplService.getClient();
             const info = await xrplService.getAccountInfo(walletFromSeed.classicAddress);
             setAccountInfo(info);
 
@@ -409,22 +428,38 @@ function App() {
     const renderStepContent = () => {
         switch (activeStep) {
             case 0:
-                return (
-                    <WalletConnectionStep
-                        formData={formData}
-                        setFormData={setFormData}
-                        validateField={validateField}
-                        errors={errors}
-                        setError={setError}
-                        onConnect={connectWallet}
-                        connectionStatus={connectionStatus}
-                        loading={loading}
-                        wallet={wallet}
-                        accountInfo={accountInfo}
-                        warnings={warnings}
-                        onContinue={handleNext}
-                    />
-                );
+                // Check if wallet is already connected from navigation
+                const savedWalletData = sessionService.getWalletData();
+                const hasWalletInNav = savedWalletData && savedWalletData.seed && wallet;
+                
+                if (hasWalletInNav) {
+                    // Show simple view if wallet is already connected
+                    return (
+                        <WalletConnectionStepSimple
+                            wallet={wallet}
+                            accountInfo={accountInfo}
+                            onContinue={handleNext}
+                        />
+                    );
+                } else {
+                    // Show full connection form
+                    return (
+                        <WalletConnectionStep
+                            formData={formData}
+                            setFormData={setFormData}
+                            validateField={validateField}
+                            errors={errors}
+                            setError={setError}
+                            onConnect={connectWallet}
+                            connectionStatus={connectionStatus}
+                            loading={loading}
+                            wallet={wallet}
+                            accountInfo={accountInfo}
+                            warnings={warnings}
+                            onContinue={handleNext}
+                        />
+                    );
+                }
             case 1:
                 return (
                     <TokenInfoStep

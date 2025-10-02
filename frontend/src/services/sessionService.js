@@ -1,6 +1,7 @@
 class SessionService {
     constructor() {
         this.storageKey = 'mpt-creator-session';
+        this.walletKey = 'mpt-wallet-data';
         this.maxAge = parseInt(import.meta.env.VITE_SESSION_MAX_AGE) || 3600000; // 1 hour
     }
 
@@ -43,6 +44,25 @@ class SessionService {
 
     clearSession() {
         localStorage.removeItem(this.storageKey);
+        localStorage.removeItem(this.walletKey);
+    }
+
+    saveWalletData(walletData) {
+        try {
+            localStorage.setItem(this.walletKey, JSON.stringify(walletData));
+        } catch (err) {
+            console.warn('Failed to save wallet data:', err);
+        }
+    }
+
+    getWalletData() {
+        try {
+            const saved = localStorage.getItem(this.walletKey);
+            return saved ? JSON.parse(saved) : null;
+        } catch (err) {
+            console.warn('Failed to load wallet data:', err);
+            return null;
+        }
     }
 }
 

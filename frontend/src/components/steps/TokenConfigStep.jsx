@@ -29,26 +29,38 @@ const TokenConfigStep = React.memo(({
     const capabilities = [
         { 
             key: 'canLock', 
-            label: '🔒 Freeze Tokens', 
-            description: 'You can freeze tokens in user wallets if needed',
+            label: '🔒 Can Lock', 
+            description: 'Allows locking all token balances (prevents all transfers)',
             recommended: false 
         },
         { 
             key: 'requireAuth', 
-            label: '✅ Pre-approve Holders', 
-            description: 'People need your permission before they can hold this token',
+            label: '✅ Require Authorization', 
+            description: 'Holders must be authorized before receiving tokens',
             recommended: false 
+        },
+        { 
+            key: 'canEscrow', 
+            label: '⏱️ Can Escrow', 
+            description: 'Enables escrow functionality for conditional transfers',
+            recommended: false 
+        },
+        { 
+            key: 'canTrade', 
+            label: '💱 Can Trade', 
+            description: 'Allows trading on DEX and AMM',
+            recommended: true 
+        },
+        { 
+            key: 'canTransfer', 
+            label: '↔️ Can Transfer', 
+            description: 'Allows peer-to-peer transfers between holders',
+            recommended: true 
         },
         { 
             key: 'canClawback', 
-            label: '↩️ Reverse Transfers', 
-            description: 'You can take tokens back from users if necessary',
-            recommended: false 
-        },
-        { 
-            key: 'canFreeze', 
-            label: '❄️ Freeze Accounts', 
-            description: 'You can freeze specific accounts from trading',
+            label: '↩️ Can Clawback', 
+            description: 'You can reclaim tokens from holders if necessary',
             recommended: false 
         }
     ];

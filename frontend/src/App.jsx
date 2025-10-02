@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { 
-    Container, 
     Card, 
     CardContent,
     Stepper, 
@@ -64,8 +63,10 @@ function App() {
         maxAmount: '',
         canLock: false,
         requireAuth: false,
+        canEscrow: false,
+        canTrade: true,
+        canTransfer: true,
         canClawback: false,
-        canFreeze: false,
         iconUrl: '',
         assetClass: '',
         assetSubclass: '',
@@ -165,6 +166,9 @@ function App() {
 
             const walletFromSeed = xrpl.Wallet.fromSeed(secret);
             setWallet(walletFromSeed);
+            
+            // Save wallet data for other pages
+            sessionService.saveWalletData({ seed: secret });
 
             const info = await xrplService.getAccountInfo(walletFromSeed.classicAddress);
             setAccountInfo(info);
@@ -220,10 +224,12 @@ function App() {
         
         try {
             const flags = 
-                (formData.canLock ? 1 : 0) |
-                (formData.requireAuth ? 2 : 0) |
-                (formData.canFreeze ? 4 : 0) |
-                (formData.canClawback ? 8 : 0);
+                (formData.canLock ? 0x0001 : 0) |        // lsfMPTCanLock
+                (formData.requireAuth ? 0x0002 : 0) |   // lsfMPTRequireAuth
+                (formData.canEscrow ? 0x0004 : 0) |     // lsfMPTCanEscrow
+                (formData.canTrade ? 0x0008 : 0) |      // lsfMPTCanTrade
+                (formData.canTransfer ? 0x0010 : 0) |   // lsfMPTCanTransfer
+                (formData.canClawback ? 0x0020 : 0);    // lsfMPTCanClawback
 
             const metadata = formData.includeMetadata ? 
                 metadataService.buildMetadata(formData) : '';
@@ -506,11 +512,7 @@ function App() {
     };
 
     return (
-        <Container maxWidth="md" sx={{ 
-            mt: 4, 
-            mb: 4,
-            px: { xs: 2, sm: 3 }
-        }}>
+        <Box sx={{ maxWidth: 'md', mx: 'auto' }}>
             <Card 
                 elevation={3} 
                 sx={{ 
@@ -666,7 +668,7 @@ function App() {
                     )}
                 </DialogContent>
             </Dialog>
-        </Container>
+        </Box>
     );
 }
 

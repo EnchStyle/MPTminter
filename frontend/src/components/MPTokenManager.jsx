@@ -1,10 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
     Button,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
     Typography,
     Box,
     IconButton,
@@ -15,15 +11,29 @@ import {
     ListItemText,
     Alert,
     CircularProgress,
-    TextField
+    TextField,
+    Card,
+    CardContent,
+    Chip,
+    Snackbar,
+    Tooltip
 } from '@mui/material';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import { xrplService } from '../services/xrplService';
 
-const MPTokenManager = React.memo(({ wallet, xrplService, showSnackbar }) => {
+const MPTokenManager = React.memo(({ wallet, isStandalone = false }) => {
     const [loading, setLoading] = useState(false);
     const [holderTokens, setHolderTokens] = useState([]);
     const [issuerTokens, setIssuerTokens] = useState([]);
     const [selectedTab, setSelectedTab] = useState(0);
     const [holderAddress, setHolderAddress] = useState('');
+    const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
+    
+    // Internal snackbar for standalone mode
+    const showSnackbar = (message, severity = 'info') => {
+        setSnackbar({ open: true, message, severity });
+    };
     
     const loadTokens = useCallback(async () => {
         if (!wallet) return;
@@ -45,74 +55,73 @@ const MPTokenManager = React.memo(({ wallet, xrplService, showSnackbar }) => {
         } finally {
             setLoading(false);
         }
-    }, [wallet, xrplService, showSnackbar]);
+    }, [wallet]);
     
     const checkHolderTokens = useCallback(async () => {
         if (!holderAddress) {
-            showSnackbar('Please enter a holder address', 'warning');
+            showSnackbar('Please enter a holder address', 'error');
             return;
         }
         
         setLoading(true);
         try {
-            const tokens = await xrplService.getAllMPTokens(holderAddress);
-            setHolderTokens(tokens);
-            showSnackbar(`Found ${tokens.length} tokens for ${holderAddress}`, 'info');
+            const holdings = await xrplService.getAllMPTokens(holderAddress);
+            showSnackbar(`Holder has ${holdings.length} MPTokens`, 'info');
         } catch (err) {
-            console.error('Error loading holder tokens:', err);
-            showSnackbar('Failed to load tokens: ' + err.message, 'error');
+            console.error('Error checking holder:', err);
+            showSnackbar('Failed to check holder: ' + err.message, 'error');
         } finally {
             setLoading(false);
         }
-    }, [holderAddress, xrplService, showSnackbar]);
+    }, [holderAddress]);
     
-    const handleUnauthorize = useCallback(async (mptIssuanceId, holderAddr) => {
-        if (!wallet) return;
-        
+    const handleUnauthorize = useCallback(async (mptIssuanceId) => {
+        setLoading(true);
         try {
-            setLoading(true);
             const tx = {
-                TransactionType: 'MPTokenAuthorize',
-                Account: holderAddr || wallet.classicAddress,
+                TransactionType: "MPTokenAuthorize",
+                Account: wallet.classicAddress,
                 MPTokenIssuanceID: mptIssuanceId,
-                Flags: 1 // Unauthorize
+                Flags: 0x0001 // tfMPTUnauthorize
             };
             
-            // If unauthorizing for another holder, they need to sign
-            if (holderAddr && holderAddr !== wallet.classicAddress) {
-                showSnackbar('The holder must unauthorize from their own wallet', 'warning');
-                return;
-            }
-            
             const result = await xrplService.submitTransaction(tx, wallet);
-            
             if (result.result.validated) {
-                showSnackbar('Successfully removed authorization!', 'success');
-                await loadTokens();
+                showSnackbar('Token authorization removed', 'success');
+                await loadTokens(); // Reload tokens
             } else {
-                throw new Error(result.result.meta.TransactionResult);
+                throw new Error('Transaction failed');
             }
         } catch (err) {
-            console.error('Unauthorize error:', err);
-            showSnackbar('Failed to unauthorize: ' + err.message, 'error');
+            console.error('Error unauthorizing:', err);
+            showSnackbar('Failed to remove authorization: ' + err.message, 'error');
         } finally {
             setLoading(false);
-        }
-    }, [wallet, xrplService, showSnackbar, loadTokens]);
-    
-    useEffect(() => {
-        if (wallet) {
-            loadTokens();
         }
     }, [wallet, loadTokens]);
     
-    return (
+    const copyToClipboard = (text) => {
+        navigator.clipboard.writeText(text);
+        showSnackbar('Copied to clipboard', 'success');
+    };
+    
+    // Load tokens on mount
+    useEffect(() => {
+        loadTokens();
+    }, [loadTokens]);
+    
+    const content = (
         <>
-            <Tabs value={selectedTab} onChange={(e, v) => setSelectedTab(v)} sx={{ mb: 2 }}>
-                <Tab label="My Holdings" />
-                <Tab label="My Issuances" />
-                <Tab label="Check Holder" />
-            </Tabs>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Tabs value={selectedTab} onChange={(e, v) => setSelectedTab(v)}>
+                    <Tab label="My Holdings" />
+                    <Tab label="My Issuances" />
+                    <Tab label="Check Holder" />
+                </Tabs>
+                <IconButton onClick={loadTokens} disabled={loading}>
+                    <RefreshIcon />
+                </IconButton>
+            </Box>
             
             {selectedTab === 0 && (
                 <Box>
@@ -130,7 +139,18 @@ const MPTokenManager = React.memo(({ wallet, xrplService, showSnackbar }) => {
                             {holderTokens.map((token, idx) => (
                                 <ListItem key={idx} divider>
                                     <ListItemText
-                                        primary={`MPT ID: ${token.MPTokenIssuanceID}`}
+                                        primary={
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                <Typography variant="body1" noWrap sx={{ maxWidth: '70%' }}>
+                                                    {token.MPTokenIssuanceID}
+                                                </Typography>
+                                                <Tooltip title="Copy ID">
+                                                    <IconButton size="small" onClick={() => copyToClipboard(token.MPTokenIssuanceID)}>
+                                                        <ContentCopyIcon fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </Box>
+                                        }
                                         secondary={
                                             <Box>
                                                 <Typography variant="caption" display="block">
@@ -164,28 +184,46 @@ const MPTokenManager = React.memo(({ wallet, xrplService, showSnackbar }) => {
             {selectedTab === 1 && (
                 <Box>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        Tokens you have created:
+                        Tokens you have issued:
                     </Typography>
                     {loading ? (
                         <Box display="flex" justifyContent="center" p={3}>
                             <CircularProgress />
                         </Box>
                     ) : issuerTokens.length === 0 ? (
-                        <Alert severity="info">No MPTokens issued by your wallet</Alert>
+                        <Alert severity="info">You haven't issued any MPTokens yet</Alert>
                     ) : (
                         <List>
                             {issuerTokens.map((token, idx) => (
                                 <ListItem key={idx} divider>
                                     <ListItemText
-                                        primary={`MPT ID: ${token.index || token.MPTokenIssuanceID}`}
+                                        primary={
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                <Typography variant="body1" noWrap sx={{ maxWidth: '70%' }}>
+                                                    {token.MPTokenIssuanceID}
+                                                </Typography>
+                                                <Tooltip title="Copy ID">
+                                                    <IconButton size="small" onClick={() => copyToClipboard(token.MPTokenIssuanceID)}>
+                                                        <ContentCopyIcon fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </Box>
+                                        }
                                         secondary={
                                             <Box>
                                                 <Typography variant="caption" display="block">
-                                                    Max Supply: {token.MaximumAmount || 'Unlimited'}
+                                                    Max Amount: {token.MaximumAmount || 'Unlimited'}
                                                 </Typography>
                                                 <Typography variant="caption" display="block">
-                                                    Scale: {token.AssetScale || '0'}
+                                                    Transfer Fee: {token.TransferFee ? `${token.TransferFee / 1000}%` : '0%'}
                                                 </Typography>
+                                                {token.Flags && (
+                                                    <Box sx={{ mt: 0.5 }}>
+                                                        {(token.Flags & 0x0001) && <Chip label="CanLock" size="small" sx={{ mr: 0.5 }} />}
+                                                        {(token.Flags & 0x0002) && <Chip label="RequireAuth" size="small" sx={{ mr: 0.5 }} />}
+                                                        {(token.Flags & 0x0008) && <Chip label="CanClawback" size="small" />}
+                                                    </Box>
+                                                )}
                                             </Box>
                                         }
                                     />
@@ -199,16 +237,15 @@ const MPTokenManager = React.memo(({ wallet, xrplService, showSnackbar }) => {
             {selectedTab === 2 && (
                 <Box>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        Check what tokens a specific address holds:
+                        Check MPTokens for a specific address:
                     </Typography>
-                    <Box display="flex" gap={1} mb={2}>
+                    <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
                         <TextField
                             fullWidth
                             label="Holder Address"
                             value={holderAddress}
                             onChange={(e) => setHolderAddress(e.target.value)}
                             placeholder="rXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-                            size="small"
                         />
                         <Button
                             variant="contained"
@@ -218,28 +255,39 @@ const MPTokenManager = React.memo(({ wallet, xrplService, showSnackbar }) => {
                             Check
                         </Button>
                     </Box>
-                    {holderTokens.length > 0 && (
-                        <List>
-                            {holderTokens.map((token, idx) => (
-                                <ListItem key={idx} divider>
-                                    <ListItemText
-                                        primary={`MPT ID: ${token.MPTokenIssuanceID}`}
-                                        secondary={`Balance: ${token.MPTAmount || '0'}`}
-                                    />
-                                </ListItem>
-                            ))}
-                        </List>
-                    )}
                 </Box>
             )}
-            
-            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
-                <Button onClick={() => loadTokens()} disabled={loading}>
-                    Refresh
-                </Button>
-            </Box>
         </>
     );
+
+    if (isStandalone) {
+        return (
+            <>
+                <Card>
+                    <CardContent>
+                        {content}
+                    </CardContent>
+                </Card>
+                <Snackbar
+                    open={snackbar.open}
+                    autoHideDuration={6000}
+                    onClose={() => setSnackbar({ ...snackbar, open: false })}
+                    anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+                >
+                    <Alert 
+                        onClose={() => setSnackbar({ ...snackbar, open: false })} 
+                        severity={snackbar.severity}
+                    >
+                        {snackbar.message}
+                    </Alert>
+                </Snackbar>
+            </>
+        );
+    }
+    
+    return content;
 });
+
+MPTokenManager.displayName = 'MPTokenManager';
 
 export default MPTokenManager;

@@ -141,12 +141,12 @@ const TokenOperations = () => {
     const handleDestroy = async (issuance) => {
         setLoading(true);
         try {
-            // Check if there are any outstanding tokens
-            const holders = await checkTokenHolders(issuance.MPTokenIssuanceID);
-            if (holders.length > 0) {
-                showSnackbar('Cannot destroy issuance with outstanding tokens', 'error');
-                return;
-            }
+            // Skip holder check for now - let XRPL validate
+            // const holders = await checkTokenHolders(issuance.MPTokenIssuanceID);
+            // if (holders.length > 0) {
+            //     showSnackbar('Cannot destroy issuance with outstanding tokens', 'error');
+            //     return;
+            // }
 
             const tx = {
                 TransactionType: "MPTokenIssuanceDestroy",
@@ -185,6 +185,7 @@ const TokenOperations = () => {
         } finally {
             setLoading(false);
             setConfirmDialog({ open: false, action: null });
+            setSelectedIssuance(null);
         }
     };
 

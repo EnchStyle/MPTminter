@@ -93,8 +93,12 @@ const TokenOperations = () => {
     };
 
     const copyToClipboard = (text, label = 'ID') => {
-        navigator.clipboard.writeText(text);
-        showSnackbar(`${label} copied to clipboard`, 'success');
+        if (text) {
+            navigator.clipboard.writeText(text);
+            showSnackbar(`${label} copied to clipboard`, 'success');
+        } else {
+            showSnackbar('Nothing to copy', 'warning');
+        }
     };
 
     const handleLockUnlock = async (issuance, lock) => {
@@ -274,16 +278,20 @@ const TokenOperations = () => {
 
                                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                                                     <Typography variant="caption" color="text.secondary">
-                                                        ID: {issuance.MPTokenIssuanceID.substring(0, 16)}...
+                                                        ID: {issuance.MPTokenIssuanceID ? 
+                                                            `${issuance.MPTokenIssuanceID.substring(0, 16)}...` : 
+                                                            'Unknown ID'}
                                                     </Typography>
-                                                    <Tooltip title="Copy full ID">
-                                                        <IconButton 
-                                                            size="small" 
-                                                            onClick={() => copyToClipboard(issuance.MPTokenIssuanceID)}
-                                                        >
-                                                            <ContentCopyIcon fontSize="small" />
-                                                        </IconButton>
-                                                    </Tooltip>
+                                                    {issuance.MPTokenIssuanceID && (
+                                                        <Tooltip title="Copy full ID">
+                                                            <IconButton 
+                                                                size="small" 
+                                                                onClick={() => copyToClipboard(issuance.MPTokenIssuanceID)}
+                                                            >
+                                                                <ContentCopyIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    )}
                                                 </Box>
 
                                                 <Grid container spacing={2} sx={{ mt: 0.5 }}>

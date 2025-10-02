@@ -332,12 +332,15 @@ function App() {
             const scale = parseInt(formData.assetScale) || 0;
             const scaledAmount = (parseFloat(amount) * Math.pow(10, scale)).toString();
 
+            // Use Payment transaction to send MPT tokens
             const tx = {
-                TransactionType: "MPTokenIssuanceSet",
+                TransactionType: "Payment",
                 Account: wallet.classicAddress,
-                MPTokenIssuanceID: txState.mptIssuanceId,
-                MPTokenHolder: formData.recipientAddress.trim(),
-                Amount: scaledAmount
+                Destination: formData.recipientAddress.trim(),
+                Amount: {
+                    mpt_issuance_id: txState.mptIssuanceId,
+                    value: scaledAmount
+                }
             };
 
             const result = await xrplService.submitTransaction(tx, wallet);

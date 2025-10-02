@@ -84,16 +84,18 @@ const ReviewStep = React.memo(({
                         <CardContent>
                             <Typography variant="h6" gutterBottom>Features Enabled</Typography>
                             <Box display="flex" flexWrap="wrap" gap={1}>
-                                {formData.canLock && <Chip label="🔒 Lock" size="small" />}
-                                {formData.requireAuth && <Chip label="✅ Auth" size="small" />}
-                                {formData.canFreeze && <Chip label="❄️ Freeze" size="small" />}
-                                {formData.canClawback && <Chip label="↩️ Clawback" size="small" />}
-                                {!formData.canLock && !formData.requireAuth && !formData.canFreeze && !formData.canClawback && (
-                                    <Typography variant="body2" color="text.secondary">
-                                        No additional capabilities
-                                    </Typography>
-                                )}
+                                {formData.canLock && <Chip label="🔒 Can Lock" size="small" />}
+                                {formData.requireAuth && <Chip label="✅ Require Auth" size="small" color="warning" />}
+                                {formData.canEscrow && <Chip label="⏱️ Can Escrow" size="small" />}
+                                {formData.canTrade && <Chip label="💱 Can Trade" size="small" color="success" />}
+                                {formData.canTransfer && <Chip label="↔️ Can Transfer" size="small" color="success" />}
+                                {formData.canClawback && <Chip label="↩️ Can Clawback" size="small" />}
                             </Box>
+                            {formData.requireAuth && (
+                                <Alert severity="warning" sx={{ mt: 2 }}>
+                                    <strong>Authorization Required:</strong> Recipients must be authorized before they can receive tokens.
+                                </Alert>
+                            )}
                         </CardContent>
                     </Card>
                 </Grid>

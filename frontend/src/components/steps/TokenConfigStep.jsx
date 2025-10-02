@@ -36,8 +36,9 @@ const TokenConfigStep = React.memo(({
         { 
             key: 'requireAuth', 
             label: '✅ Require Authorization', 
-            description: 'Holders must be authorized before receiving tokens',
-            recommended: false 
+            description: 'Only pre-authorized addresses can receive tokens. Creates a whitelist system.',
+            recommended: false,
+            warning: 'Recipients cannot receive tokens through DEX or other means without your explicit authorization first!'
         },
         { 
             key: 'canEscrow', 
@@ -155,11 +156,16 @@ const TokenConfigStep = React.memo(({
                                             <Typography variant="caption" color="text.secondary">
                                                 {capability.description}
                                             </Typography>
+                                            {capability.warning && formData[capability.key] && (
+                                                <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 0.5 }}>
+                                                    ⚠️ {capability.warning}
+                                                </Typography>
+                                            )}
                                         </Box>
                                     </Box>
                                     {capability.recommended && (
                                         <Chip 
-                                            label="Rec" 
+                                            label="Recommended" 
                                             size="small" 
                                             color="success" 
                                             variant="outlined"

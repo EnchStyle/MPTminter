@@ -1,16 +1,105 @@
+/* CSS Reset and Base Styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
 body {
-    margin: 0;
-    font-family: 'Roboto', sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    min-height: 100vh;
+  margin: 0;
+  font-family: 'Roboto', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+  line-height: 1.5;
+  overflow-x: hidden;
 }
 
 #root {
-    min-height: 100vh;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
-* {
-    box-sizing: border-box;
+/* Container Constraints */
+.MuiContainer-root {
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-/* Material Icons replaced with @mui/icons-material components */
+/* Fix Card elevation and borders */
+.MuiPaper-root.MuiCard-root {
+  overflow: visible;
+}
+
+/* Fix overlapping issues with proper z-index hierarchy */
+.MuiDialog-root {
+  z-index: 1300 !important;
+}
+
+.MuiSnackbar-root {
+  z-index: 1400 !important;
+}
+
+.MuiTooltip-popper {
+  z-index: 1500 !important;
+}
+
+/* Fix Grid spacing issues */
+.MuiGrid-root > .MuiGrid-item {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.MuiGrid-root.MuiGrid-container {
+  margin-left: -12px;
+  margin-right: -12px;
+  width: calc(100% + 24px);
+}
+
+/* Stepper background and spacing fix */
+.MuiStepper-root {
+  background-color: transparent;
+  padding: 24px 0;
+}
+
+/* Fix TextField margin consistency */
+.MuiFormControl-root {
+  width: 100%;
+}
+
+/* Prevent content overflow */
+.MuiCardContent-root {
+  padding: 16px;
+}
+
+.MuiCardContent-root:last-child {
+  padding-bottom: 16px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .MuiContainer-root {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  
+  .MuiGrid-root > .MuiGrid-item {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  
+  .MuiGrid-root.MuiGrid-container {
+    margin-left: -8px;
+    margin-right: -8px;
+    width: calc(100% + 16px);
+  }
+}

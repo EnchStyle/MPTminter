@@ -1,0 +1,48 @@
+/* Form-specific spacing fixes */
+.MuiGrid-root.MuiGrid-item {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Fix TextField spacing within Grid items */
+.MuiGrid-item > .MuiTextField-root,
+.MuiGrid-item > .MuiFormControl-root {
+  margin-bottom: 0 !important;
+}
+
+/* Add consistent spacing between form rows */
+.MuiGrid-container > .MuiGrid-item {
+  margin-bottom: 16px;
+}
+
+.MuiGrid-container > .MuiGrid-item:last-child {
+  margin-bottom: 0;
+}
+
+/* Fix Card content spacing */
+.MuiCardContent-root > .MuiGrid-container {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* Ensure proper TextField styling */
+.MuiTextField-root {
+  background-color: transparent;
+}
+
+/* Fix nested Card issues */
+.MuiCard-root .MuiCard-root {
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Fix dialog z-index issues */
+.MuiDialog-container {
+  align-items: center;
+}
+
+/* Fix step content overflow */
+.step-content {
+  width: 100%;
+  overflow-x: hidden;
+}

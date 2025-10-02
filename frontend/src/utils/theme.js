@@ -2,6 +2,7 @@ import { createTheme } from '@mui/material/styles';
 
 export const theme = createTheme({
     palette: {
+        mode: 'dark',
         primary: {
             main: '#667eea',
             light: '#9bb5ff',
@@ -30,9 +31,10 @@ export const theme = createTheme({
             dark: '#dc2626'
         },
         background: {
-            default: '#f8fafc',
-            paper: '#ffffff'
-        }
+            default: '#121212',
+            paper: 'rgba(255, 255, 255, 0.05)'
+        },
+        divider: 'rgba(255, 255, 255, 0.12)'
     },
     typography: {
         fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
@@ -40,36 +42,104 @@ export const theme = createTheme({
         h5: { fontWeight: 600, fontSize: '1.5rem' },
         h6: { fontWeight: 600, fontSize: '1.25rem' }
     },
-    shape: { borderRadius: 12 },
+    shape: { 
+        borderRadius: 12 
+    },
     spacing: 8,
     components: {
+        MuiCssBaseline: {
+            styleOverrides: {
+                body: {
+                    scrollbarColor: '#6b6b6b #2b2b2b',
+                    '&::-webkit-scrollbar, & *::-webkit-scrollbar': {
+                        width: '8px',
+                    },
+                    '&::-webkit-scrollbar-thumb, & *::-webkit-scrollbar-thumb': {
+                        borderRadius: 8,
+                        backgroundColor: '#6b6b6b',
+                        minHeight: 24,
+                    },
+                    '&::-webkit-scrollbar-track, & *::-webkit-scrollbar-track': {
+                        borderRadius: 8,
+                        backgroundColor: '#2b2b2b',
+                    },
+                },
+            },
+        },
         MuiButton: {
             styleOverrides: {
                 root: {
                     textTransform: 'none',
                     fontWeight: 600,
-                    borderRadius: '12px',
-                    padding: '12px 24px'
+                    borderRadius: '8px',
+                    padding: '10px 20px'
                 }
             }
         },
         MuiTextField: {
+            defaultProps: {
+                fullWidth: true,
+                margin: 'none',
+            },
             styleOverrides: {
-                root: { marginBottom: '16px' }
-            }
-        },
-        MuiCard: {
-            styleOverrides: {
-                root: {
-                    borderRadius: '16px',
-                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+                root: { 
+                    marginBottom: 0,
+                    '& .MuiInputBase-root': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    },
+                    '& .MuiInputBase-root:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                    },
                 }
             }
         },
+        MuiCard: {
+            defaultProps: {
+                elevation: 0,
+                variant: 'elevation',
+            },
+            styleOverrides: {
+                root: {
+                    backgroundImage: 'none',
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    overflow: 'visible',
+                }
+            }
+        },
+        MuiGrid: {
+            styleOverrides: {
+                container: {
+                    marginTop: 0,
+                    marginBottom: 0,
+                },
+            },
+        },
         MuiStepper: {
             styleOverrides: {
-                root: { backgroundColor: 'transparent' }
+                root: { 
+                    backgroundColor: 'transparent',
+                    padding: 0,
+                }
             }
-        }
+        },
+        MuiStepLabel: {
+            styleOverrides: {
+                label: {
+                    '&.Mui-active': {
+                        color: '#667eea',
+                    },
+                    '&.Mui-completed': {
+                        color: '#10b981',
+                    },
+                },
+            },
+        },
+        MuiContainer: {
+            defaultProps: {
+                maxWidth: 'lg',
+            },
+        },
     }
 });

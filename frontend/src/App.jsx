@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { 
     Container, 
     Card, 
+    CardContent,
     Stepper, 
     Step, 
     StepLabel, 
@@ -505,35 +506,74 @@ function App() {
     };
 
     return (
-        <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-            <Card elevation={3}>
-                <Box sx={{ p: 4 }}>
+        <Container maxWidth="md" sx={{ 
+            mt: 4, 
+            mb: 4,
+            px: { xs: 2, sm: 3 }
+        }}>
+            <Card 
+                elevation={3} 
+                sx={{ 
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    overflow: 'visible'
+                }}
+            >
+                <Box sx={{ p: { xs: 2, sm: 3, md: 4 } }}>
                     <Box sx={{ 
                         display: 'flex', 
+                        flexDirection: { xs: 'column', sm: 'row' },
                         justifyContent: 'space-between', 
-                        alignItems: 'center', 
+                        alignItems: { xs: 'stretch', sm: 'center' }, 
+                        gap: 2,
                         mb: 4 
                     }}>
-                        <Typography variant="h4" component="h1" gutterBottom sx={{ mb: 0 }}>
+                        <Typography 
+                            variant="h4" 
+                            component="h1" 
+                            sx={{ 
+                                mb: 0,
+                                fontSize: { xs: '1.75rem', sm: '2.125rem' }
+                            }}
+                        >
                             MPT Token Creator
                         </Typography>
                         {wallet && (
                             <Button
                                 variant="outlined"
                                 onClick={() => setTokenManagerOpen(true)}
+                                sx={{ alignSelf: { xs: 'flex-start', sm: 'center' } }}
                             >
                                 Manage Tokens
                             </Button>
                         )}
                     </Box>
 
-                    <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-                        {STEPS.map((label, index) => (
-                            <Step key={label} completed={isStepCompleted(index)}>
-                                <StepLabel>{label}</StepLabel>
-                            </Step>
-                        ))}
-                    </Stepper>
+                    <Card 
+                        sx={{ 
+                            mb: 4, 
+                            background: 'rgba(255, 255, 255, 0.03)',
+                            border: '1px solid rgba(255, 255, 255, 0.05)'
+                        }}
+                    >
+                        <CardContent sx={{ py: { xs: 2, sm: 3 } }}>
+                            <Stepper 
+                                activeStep={activeStep} 
+                                sx={{ 
+                                    backgroundColor: 'transparent',
+                                    flexWrap: { xs: 'wrap', md: 'nowrap' }
+                                }}
+                                alternativeLabel
+                            >
+                                {STEPS.map((label, index) => (
+                                    <Step key={label} completed={isStepCompleted(index)}>
+                                        <StepLabel>{label}</StepLabel>
+                                    </Step>
+                                ))}
+                            </Stepper>
+                        </CardContent>
+                    </Card>
 
                     {error && (
                         <Alert 
@@ -545,13 +585,22 @@ function App() {
                         </Alert>
                     )}
 
-                    {renderStepContent()}
+                    <Box className="step-content">
+                        {renderStepContent()}
+                    </Box>
 
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
+                    <Box sx={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        mt: 4,
+                        gap: 2,
+                        flexWrap: 'wrap'
+                    }}>
                         <Button
                             disabled={activeStep === 0 || loading}
                             onClick={handleBack}
                             variant="outlined"
+                            sx={{ minWidth: 100 }}
                         >
                             Back
                         </Button>
@@ -561,6 +610,10 @@ function App() {
                                 variant="contained"
                                 onClick={handleNext}
                                 disabled={loading || !isStepCompleted(activeStep)}
+                                sx={{ 
+                                    minWidth: 100,
+                                    ml: 'auto' 
+                                }}
                             >
                                 {loading ? <CircularProgress size={24} /> : 'Next'}
                             </Button>

@@ -125,7 +125,7 @@ const TokenOperations = () => {
             
             // Handle specific error cases
             if (errorMessage.includes('Invalid field TransactionType')) {
-                errorMessage = 'MPTokenIssuanceSet may not be supported on this network. Please ensure you are connected to a network that supports MPT.';
+                errorMessage = 'MPTokenIssuanceSet is not yet implemented in XLS-0033. The lock/unlock feature is planned but not currently available on any XRPL network.';
             } else if (errorMessage.includes('NotEnabled')) {
                 errorMessage = 'MPT feature is not enabled on this network. Please use an MPT-enabled testnet or wait for mainnet activation.';
             }
@@ -167,7 +167,7 @@ const TokenOperations = () => {
             
             // Handle specific error cases
             if (errorMessage.includes('Invalid field TransactionType')) {
-                errorMessage = 'MPTokenIssuanceDestroy may not be supported on this network. Please ensure you are connected to a network that supports MPT (Multi-Purpose Tokens).';
+                errorMessage = 'MPTokenIssuanceDestroy is not yet implemented in XLS-0033. This feature is planned but not currently available on any XRPL network.';
             } else if (errorMessage.includes('NotEnabled')) {
                 errorMessage = 'MPT feature is not enabled on this network. Please use an MPT-enabled testnet or wait for mainnet activation.';
             }
@@ -217,6 +217,13 @@ const TokenOperations = () => {
                     Manage your MPT issuances - lock, unlock, or destroy tokens
                 </Typography>
             </Box>
+
+            <Alert severity="info" sx={{ mb: 3 }}>
+                <Typography variant="body2">
+                    <strong>Note:</strong> According to XLS-0033 specification, MPTokenIssuanceSet (lock/unlock) and 
+                    MPTokenIssuanceDestroy are not yet implemented on XRPL. These features are planned for future releases.
+                </Typography>
+            </Alert>
 
             <Card sx={{ mb: 3 }}>
                 <CardContent>

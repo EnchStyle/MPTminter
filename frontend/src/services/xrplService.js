@@ -245,35 +245,49 @@ class XRPLService {
     async getMPTokenIssuances(issuerAddress) {
         const client = await this.getClient();
         try {
-            const response = await client.request({
-                command: 'account_objects',
-                account: issuerAddress,
-                type: 'MPTokenIssuance',
-                limit: 400  // Fetch up to 400 objects (maximum allowed)
-            });
+            let allObjects = [];
+            let marker = undefined;
+            
+            // Fetch all pages of results
+            do {
+                const response = await client.request({
+                    command: 'account_objects',
+                    account: issuerAddress,
+                    type: 'MPTokenIssuance',
+                    limit: 400,  // Maximum allowed per request
+                    marker: marker
+                });
+                
+                console.log(`Fetched page with ${response.result.account_objects?.length || 0} objects`);
+                if (response.result.marker) {
+                    console.log('More results available, fetching next page...');
+                }
+                
+                if (response.result.account_objects) {
+                    allObjects = allObjects.concat(response.result.account_objects);
+                }
+                
+                marker = response.result.marker;
+            } while (marker);
+            
+            console.log(`Total objects fetched across all pages: ${allObjects.length}`);
             
             // Import debug utility at runtime to avoid circular dependencies
             const { debugMPTokenIssuance } = await import('../utils/debugMPToken.js');
             
-            // Debug: Log the response to see what fields are available
-            console.log(`Total MPTokenIssuance objects fetched: ${response.result.account_objects?.length || 0}`);
-            console.log('Full XRPL response:', response.result);
-            
             // Log ALL tokens with their outstanding amounts
-            if (response.result.account_objects) {
+            if (allObjects.length > 0) {
                 console.log('ALL MPTokenIssuance objects:');
-                response.result.account_objects.forEach((obj, idx) => {
+                allObjects.forEach((obj, idx) => {
                     console.log(`Token ${idx + 1}: OutstandingAmount = ${obj.OutstandingAmount || '0'}, Sequence = ${obj.Sequence}`);
                 });
-            }
-            
-            if (response.result.account_objects && response.result.account_objects.length > 0) {
-                console.log('MPTokenIssuance objects from account_objects:', response.result.account_objects);
+                
+                console.log('MPTokenIssuance objects from account_objects:', allObjects);
                 // Debug the first issuance in detail
-                debugMPTokenIssuance(response.result.account_objects[0], 'First MPTokenIssuance');
+                debugMPTokenIssuance(allObjects[0], 'First MPTokenIssuance');
             }
             
-            return response.result.account_objects || [];
+            return allObjects;
         } catch (e) {
             console.error('Error fetching MPTokenIssuances:', e);
             return [];

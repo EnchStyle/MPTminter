@@ -64,9 +64,18 @@ const TokenHolderManager = ({ wallet, issuance, onUpdate }) => {
                 MPTokenIssuanceID: issuance.MPTokenIssuanceID,
                 Flags: issuance.Flags,
                 CanClawback: canClawback,
-                BinaryFlags: issuance.Flags?.toString(2),
+                BinaryFlags: issuance.Flags?.toString(2).padStart(8, '0'),
+                FlagBreakdown: {
+                    CanLock: !!(issuance.Flags & 0x0001),
+                    RequireAuth: !!(issuance.Flags & 0x0002),
+                    CanEscrow: !!(issuance.Flags & 0x0004),
+                    CanTrade: !!(issuance.Flags & 0x0008),
+                    CanTransfer: !!(issuance.Flags & 0x0010),
+                    CanClawback: !!(issuance.Flags & 0x0020)
+                },
                 Issuer: issuance.Issuer || wallet?.classicAddress,
-                CurrentWallet: wallet?.classicAddress
+                CurrentWallet: wallet?.classicAddress,
+                FullIssuance: issuance
             });
         }
     }, [issuance, canClawback, wallet]);
@@ -421,6 +430,10 @@ const TokenHolderManager = ({ wallet, issuance, onUpdate }) => {
                             This token is currently locked. Unlock it before attempting to clawback.
                         </Alert>
                     )}
+                    <Alert severity="warning" sx={{ mb: 2 }}>
+                        <strong>Note:</strong> The standard Clawback transaction appears to be for regular issued currencies (IOUs), not MPTs. 
+                        MPT clawback functionality may require a different implementation approach per XLS-0033.
+                    </Alert>
                     {clawbackDialog.holder && (
                         <Box sx={{ mb: 2 }}>
                             <Typography variant="body2" color="text.secondary">

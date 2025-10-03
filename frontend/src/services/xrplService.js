@@ -307,8 +307,20 @@ class XRPLService {
     }
     
     async submitClawback(issuerWallet, holderAddress, mptIssuanceId, amount) {
-        // MPT Clawback is performed using the Clawback transaction type
+        // MPT Clawback might not use the standard Clawback transaction
+        // Let's check the actual transaction format needed
         try {
+            // Log to understand the issue better
+            console.log('MPT Clawback attempt:', {
+                issuer: issuerWallet.classicAddress,
+                holder: holderAddress,
+                mptId: mptIssuanceId,
+                amount: amount
+            });
+            
+            // The Clawback transaction type might be for IOUs only
+            // For MPTs, clawback might work differently
+            // Let's try the standard format first to get more info
             const tx = {
                 TransactionType: "Clawback",
                 Account: issuerWallet.classicAddress,
@@ -319,10 +331,30 @@ class XRPLService {
                 Holder: holderAddress
             };
             
-            console.log('Clawback transaction:', tx);
-            return await this.submitTransaction(tx, issuerWallet);
+            const result = await this.submitTransaction(tx, issuerWallet);
+            return result;
         } catch (error) {
-            console.error('Clawback transaction error:', error);
+            // If we get tecNO_PERMISSION, it might mean:
+            // 1. Clawback transaction doesn't work with MPTs
+            // 2. MPT clawback needs a different approach
+            
+            if (error.data?.error === 'tecNO_PERMISSION') {
+                console.error('Clawback permission denied. This might indicate that:', 
+                    '\n1. The Clawback transaction type is not for MPTs',
+                    '\n2. MPT clawback requires a different mechanism',
+                    '\n3. Check if MPT clawback is implemented via Payment or other transaction types'
+                );
+                
+                // Add more context to the error
+                const enhancedError = new Error(
+                    'MPT Clawback failed. The standard Clawback transaction may not support MPTs. ' +
+                    'This feature might require a different implementation approach.'
+                );
+                enhancedError.data = error.data;
+                enhancedError.originalError = error;
+                throw enhancedError;
+            }
+            
             throw error;
         }
     }

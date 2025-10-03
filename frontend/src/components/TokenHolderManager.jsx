@@ -340,7 +340,7 @@ const TokenHolderManager = ({ wallet, issuance, onUpdate }) => {
                                         <ListItemSecondaryAction>
                                             <Box sx={{ display: 'flex', gap: 1 }}>
                                                 {canClawback && parseFloat(holder.MPTokenAmount) > 0 && (
-                                                    <Tooltip title="Clawback tokens">
+                                                    <Tooltip title="Clawback (Experimental - May not work for MPTs)">
                                                         <IconButton
                                                             color="error"
                                                             onClick={() => setClawbackDialog({ 
@@ -430,9 +430,10 @@ const TokenHolderManager = ({ wallet, issuance, onUpdate }) => {
                             This token is currently locked. Unlock it before attempting to clawback.
                         </Alert>
                     )}
-                    <Alert severity="warning" sx={{ mb: 2 }}>
-                        <strong>Note:</strong> The standard Clawback transaction appears to be for regular issued currencies (IOUs), not MPTs. 
-                        MPT clawback functionality may require a different implementation approach per XLS-0033.
+                    <Alert severity="error" sx={{ mb: 2 }}>
+                        <strong>Important:</strong> The Clawback transaction type is only for IOUs (issued currencies), not MPTs.
+                        While XLS-0033 defines the CanClawback flag for MPTs, the actual clawback mechanism for MPTs
+                        is not yet clear from the available documentation. This feature may not be fully implemented yet.
                     </Alert>
                     {clawbackDialog.holder && (
                         <Box sx={{ mb: 2 }}>

@@ -18,7 +18,11 @@ export const getErrorMessage = (error) => {
     if (error.data?.error === 'tecNO_PERMISSION') {
         // Check if this is a clawback operation
         if (error.data?.request?.TransactionType === 'Clawback') {
-            return 'Cannot clawback: Either the token does not have clawback enabled or you are not the issuer of this token.';
+            // Check if this is an MPT clawback attempt
+            if (error.data?.request?.Amount?.mpt_issuance_id) {
+                return 'MPT Clawback Error: The Clawback transaction type is only for IOUs (issued currencies), not MPTs. MPT clawback may require a different implementation method.';
+            }
+            return 'Cannot clawback: Either the token does not have clawback enabled or you are not the issuer.';
         }
         return 'Permission denied: You are not authorized to perform this operation.';
     }

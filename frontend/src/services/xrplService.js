@@ -316,7 +316,8 @@ class XRPLService {
                 amount: amount
             });
             
-            // According to XLS-0033, MPT clawback uses Clawback transaction with MPTokenHolder
+            // The xrpl.js library expects "Holder" field, not "MPTokenHolder"
+            // even for MPT clawback transactions
             const tx = {
                 TransactionType: "Clawback",
                 Account: issuerWallet.classicAddress,
@@ -324,7 +325,7 @@ class XRPLService {
                     mpt_issuance_id: mptIssuanceId,
                     value: amount
                 },
-                MPTokenHolder: holderAddress  // Required field for MPT clawback
+                Holder: holderAddress  // Use "Holder" for both IOU and MPT clawback
             };
             
             console.log('Submitting MPT Clawback transaction:', tx);

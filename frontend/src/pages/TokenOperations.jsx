@@ -93,6 +93,18 @@ const TokenOperations = () => {
                 return { ...issuance, metadata, MPTokenIssuanceID: id };
             });
             
+            // Log summary of all tokens
+            console.log('All token issuances summary:');
+            issuancesWithMetadata.forEach((issuance, idx) => {
+                console.log(`Token ${idx + 1}:`, {
+                    name: issuance.metadata?.name || 'Unknown',
+                    currencyCode: issuance.metadata?.currencyCode || 'Unknown',
+                    MPTokenIssuanceID: issuance.MPTokenIssuanceID,
+                    OutstandingAmount: issuance.OutstandingAmount || '0',
+                    MaximumAmount: issuance.MaximumAmount || 'Unlimited'
+                });
+            });
+            
             setIssuances(issuancesWithMetadata);
         } catch (error) {
             showSnackbar('Failed to load token issuances', 'error');
@@ -158,6 +170,13 @@ const TokenOperations = () => {
             if (issuance.MPTokenIssuanceID.length !== 48 && issuance.MPTokenIssuanceID.length !== 64) {
                 console.error('Invalid MPTokenIssuanceID format:', issuance.MPTokenIssuanceID);
                 showSnackbar(`Cannot destroy: Invalid token ID format (${issuance.MPTokenIssuanceID.length} chars)`, 'error');
+                return;
+            }
+            
+            // Check if there's outstanding supply
+            if (issuance.OutstandingAmount && parseInt(issuance.OutstandingAmount) > 0) {
+                console.error('Token has outstanding supply:', issuance.OutstandingAmount);
+                showSnackbar(`Cannot destroy: Token has ${issuance.OutstandingAmount} outstanding supply. All tokens must be burned first.`, 'error');
                 return;
             }
             

@@ -38,11 +38,16 @@ export function debugMPTokenIssuance(issuance, source = 'unknown') {
     
     // Check other important fields
     console.log('Other important fields:');
-    ['Issuer', 'Sequence', 'AssetScale', 'MaximumAmount', 'Flags'].forEach(field => {
+    ['Issuer', 'Sequence', 'AssetScale', 'MaximumAmount', 'OutstandingAmount', 'Flags'].forEach(field => {
         if (issuance[field] !== undefined) {
             console.log(`  ${field}:`, issuance[field]);
         }
     });
+    
+    // Specifically highlight OutstandingAmount
+    if (issuance.OutstandingAmount !== undefined) {
+        console.log(`  *** OutstandingAmount: ${issuance.OutstandingAmount} ***`);
+    }
     
     console.groupEnd();
 }

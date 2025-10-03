@@ -7,7 +7,7 @@
  * @param {Object} issuance - The issuance object to debug
  * @param {string} source - Where this object came from (e.g., "account_objects", "transaction")
  */
-export function debugIssuanceObject(issuance, source = 'unknown') {
+export function debugMPTokenIssuance(issuance, source = 'unknown') {
     console.group(`MPTokenIssuance Debug (${source})`);
     console.log('Full object:', issuance);
     console.log('Object keys:', Object.keys(issuance));
@@ -28,6 +28,14 @@ export function debugIssuanceObject(issuance, source = 'unknown') {
         }
     });
     
+    // Specifically log mpt_issuance_id and index for debugging
+    if (issuance.mpt_issuance_id) {
+        console.log('FOUND mpt_issuance_id:', issuance.mpt_issuance_id);
+    }
+    if (issuance.index) {
+        console.log('FOUND index:', issuance.index);
+    }
+    
     // Check other important fields
     console.log('Other important fields:');
     ['Issuer', 'Sequence', 'AssetScale', 'MaximumAmount', 'Flags'].forEach(field => {
@@ -38,6 +46,9 @@ export function debugIssuanceObject(issuance, source = 'unknown') {
     
     console.groupEnd();
 }
+
+// Alias for backward compatibility
+export const debugIssuanceObject = debugMPTokenIssuance;
 
 /**
  * Debug log a transaction result to find MPTokenIssuanceID

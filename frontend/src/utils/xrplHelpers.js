@@ -35,24 +35,26 @@ export function extractMPTokenIssuanceIDFromTx(txResult) {
 
 /**
  * Extract MPTokenIssuanceID from an account_objects response
- * For MPTokenIssuance objects, the 'index' field IS the MPTokenIssuanceID
  * @param {Object} issuanceObject - The issuance object from account_objects
  * @returns {string|null} The MPTokenIssuanceID or null if not found
  */
 export function extractMPTokenIssuanceIDFromObject(issuanceObject) {
-    // For MPTokenIssuance objects from account_objects, 
-    // the 'index' field contains the MPTokenIssuanceID
-    if (issuanceObject.index) {
-        return issuanceObject.index;
+    // Check for mpt_issuance_id first (this is what XRPL returns in account_objects)
+    if (issuanceObject.mpt_issuance_id) {
+        console.log('Found mpt_issuance_id:', issuanceObject.mpt_issuance_id);
+        return issuanceObject.mpt_issuance_id;
     }
     
-    // Fallback to other potential field names
+    // Check for MPTokenIssuanceID (alternative field name)
     if (issuanceObject.MPTokenIssuanceID) {
         return issuanceObject.MPTokenIssuanceID;
     }
     
-    if (issuanceObject.mpt_issuance_id) {
-        return issuanceObject.mpt_issuance_id;
+    // For some responses, the index field might contain the ID
+    // But based on the console output, this doesn't seem to be the case
+    if (issuanceObject.index && issuanceObject.index.length === 64) {
+        console.log('Using index as MPTokenIssuanceID:', issuanceObject.index);
+        return issuanceObject.index;
     }
     
     return null;

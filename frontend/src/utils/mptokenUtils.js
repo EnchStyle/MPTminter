@@ -6,13 +6,9 @@ import { debugIssuanceObject } from './debugMPToken';
  * Tries multiple strategies to find or compute the ID
  */
 export function extractMPTokenIssuanceID(issuance, storedIssuances = {}) {
-    // Debug the issuance object to understand its structure
-    debugIssuanceObject(issuance, 'extractMPTokenIssuanceID');
-    
-    // Strategy 1: Use the xrplHelpers extraction (handles index field properly)
+    // Strategy 1: Use the xrplHelpers extraction (checks mpt_issuance_id first)
     const extractedId = extractMPTokenIssuanceIDFromObject(issuance);
     if (extractedId) {
-        console.log(`Extracted MPTokenIssuanceID: ${extractedId} (length: ${extractedId.length})`);
         return extractedId;
     }
     

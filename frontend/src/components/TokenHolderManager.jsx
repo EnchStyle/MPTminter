@@ -313,7 +313,7 @@ const TokenHolderManager = ({ wallet, issuance, onUpdate }) => {
                                                                 holder, 
                                                                 amount: '' 
                                                             })}
-                                                            disabled={loading}
+                                                            disabled={loading || isLocked}
                                                         >
                                                             <CallReceivedIcon />
                                                         </IconButton>
@@ -341,7 +341,11 @@ const TokenHolderManager = ({ wallet, issuance, onUpdate }) => {
             </Card>
 
             {/* Authorize Dialog */}
-            <Dialog open={authorizeDialog.open} onClose={() => setAuthorizeDialog({ open: false, address: '' })}>
+            <Dialog 
+                open={authorizeDialog.open} 
+                onClose={() => setAuthorizeDialog({ open: false, address: '' })}
+                disableEnforceFocus
+            >
                 <DialogTitle>Authorize New Holder</DialogTitle>
                 <DialogContent>
                     <Alert severity="info" sx={{ mb: 2 }}>
@@ -371,12 +375,26 @@ const TokenHolderManager = ({ wallet, issuance, onUpdate }) => {
             </Dialog>
 
             {/* Clawback Dialog */}
-            <Dialog open={clawbackDialog.open} onClose={() => setClawbackDialog({ open: false, holder: null, amount: '' })}>
+            <Dialog 
+                open={clawbackDialog.open} 
+                onClose={() => setClawbackDialog({ open: false, holder: null, amount: '' })}
+                disableEnforceFocus
+            >
                 <DialogTitle>Clawback Tokens</DialogTitle>
                 <DialogContent>
                     <Alert severity="warning" sx={{ mb: 2 }}>
                         This will forcibly return tokens from the holder to you.
                     </Alert>
+                    {!canClawback && (
+                        <Alert severity="error" sx={{ mb: 2 }}>
+                            This token does not have the Clawback flag enabled. Clawback is not possible.
+                        </Alert>
+                    )}
+                    {isLocked && (
+                        <Alert severity="error" sx={{ mb: 2 }}>
+                            This token is currently locked. Unlock it before attempting to clawback.
+                        </Alert>
+                    )}
                     {clawbackDialog.holder && (
                         <Box sx={{ mb: 2 }}>
                             <Typography variant="body2" color="text.secondary">
@@ -411,7 +429,7 @@ const TokenHolderManager = ({ wallet, issuance, onUpdate }) => {
                         onClick={handleClawback}
                         variant="contained"
                         color="error"
-                        disabled={loading || !clawbackDialog.amount || parseFloat(clawbackDialog.amount) <= 0}
+                        disabled={loading || !clawbackDialog.amount || parseFloat(clawbackDialog.amount) <= 0 || !canClawback || isLocked}
                     >
                         Clawback
                     </Button>

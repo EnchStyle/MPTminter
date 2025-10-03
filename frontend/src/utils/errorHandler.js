@@ -16,7 +16,11 @@ export const getErrorMessage = (error) => {
     }
     
     if (error.data?.error === 'tecNO_PERMISSION') {
-        return 'Permission denied: You are not the issuer of this token.';
+        // Check if this is a clawback operation
+        if (error.data?.request?.TransactionType === 'Clawback') {
+            return 'Cannot clawback: Either you are not the issuer or the token does not have clawback enabled.';
+        }
+        return 'Permission denied: You are not authorized to perform this operation.';
     }
     
     if (error.data?.error === 'tecINSUFFICIENT_RESERVE') {

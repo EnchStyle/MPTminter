@@ -307,8 +307,8 @@ class XRPLService {
     }
     
     async submitClawback(issuerWallet, holderAddress, mptIssuanceId, amount) {
-        // Clawback in XLS-0033 is performed through a special Payment transaction
-        // The issuer can clawback tokens from any holder
+        // MPT Clawback is performed using the Clawback transaction type
+        // Note: The MPT must have the CanClawback flag set
         try {
             const tx = {
                 TransactionType: "Clawback",
@@ -317,9 +317,10 @@ class XRPLService {
                     mpt_issuance_id: mptIssuanceId,
                     value: amount
                 },
-                Holder: holderAddress
+                MPTokenHolder: holderAddress  // Changed from "Holder" to "MPTokenHolder"
             };
             
+            console.log('Clawback transaction:', tx);
             return await this.submitTransaction(tx, issuerWallet);
         } catch (error) {
             console.error('Clawback transaction error:', error);

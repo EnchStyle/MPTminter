@@ -835,6 +835,7 @@ const TokenOperations = () => {
                 onClose={() => setHoldersDialog(false)}
                 maxWidth="md"
                 fullWidth
+                disableEnforceFocus
             >
                 <DialogTitle>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

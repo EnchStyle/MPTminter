@@ -317,7 +317,7 @@ class XRPLService {
                     mpt_issuance_id: mptIssuanceId,
                     value: amount
                 },
-                MPTokenHolder: holderAddress  // Changed from "Holder" to "MPTokenHolder"
+                Holder: holderAddress  // XRPL expects "Holder" field for Clawback
             };
             
             console.log('Clawback transaction:', tx);

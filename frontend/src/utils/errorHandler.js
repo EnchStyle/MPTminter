@@ -45,6 +45,11 @@ export const getErrorMessage = (error) => {
         return 'Invalid token ID format. Please check the ID and try again.';
     }
     
+    // Handle clawback-specific errors
+    if (error.message?.includes('Clawback: missing Holder')) {
+        return 'Invalid clawback transaction format. Please try again.';
+    }
+    
     // Handle feature not enabled errors
     if (error.data?.error === 'temDISABLED') {
         const txType = error.data?.request?.TransactionType;

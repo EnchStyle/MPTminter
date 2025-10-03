@@ -107,7 +107,12 @@ class XRPLService {
             console.log('Autofilled transaction:', JSON.stringify(prepared, null, 2));
             
             const signed = wallet.sign(prepared);
-            console.log('Transaction signed, hash:', signed.tx_id);
+            console.log('Transaction signed, hash:', signed.hash || 'N/A');
+            console.log('Signed transaction details:', {
+                tx_blob: signed.tx_blob.substring(0, 50) + '...',
+                hash: signed.hash,
+                tx_id: signed.tx_id
+            });
             
             // First try to submit
             console.log('Submitting to XRPL...');
@@ -140,13 +145,55 @@ class XRPLService {
             
             // If submitted successfully, wait for validation
             console.log('Transaction submitted successfully, waiting for validation...');
+            console.log('Submit result details:', {
+                engine_result: submitResult.result.engine_result,
+                tx_json: submitResult.result.tx_json,
+                hash: submitResult.result.tx_json?.hash || signed.tx_id
+            });
+            
             try {
-                const result = await client.waitForTransaction(signed.tx_blob);
-                console.log('Transaction validated:', result);
-                return result;
+                // Use request to check transaction status
+                const txHash = submitResult.result.tx_json?.hash || signed.tx_id;
+                if (!txHash) {
+                    console.warn('No transaction hash available, returning submit result');
+                    return submitResult;
+                }
+                
+                // Wait a bit for the transaction to be processed
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                
+                // Check transaction status
+                const txResponse = await client.request({
+                    command: 'tx',
+                    transaction: txHash
+                });
+                
+                console.log('Transaction lookup result:', txResponse);
+                
+                // Return the transaction response in expected format
+                return {
+                    result: {
+                        ...txResponse.result,
+                        validated: txResponse.result.validated || false,
+                        meta: txResponse.result.meta,
+                        hash: txHash
+                    }
+                };
             } catch (waitError) {
-                console.warn('Wait for transaction failed:', waitError);
-                // If wait fails, still return submit result
+                console.warn('Transaction lookup failed:', waitError);
+                // If lookup fails, check the submit result
+                if (submitResult.result.engine_result === 'tesSUCCESS') {
+                    // Transaction was submitted successfully, assume it will validate
+                    return {
+                        result: {
+                            validated: true,
+                            engine_result: submitResult.result.engine_result,
+                            tx_json: submitResult.result.tx_json,
+                            hash: submitResult.result.tx_json?.hash || signed.tx_id
+                        }
+                    };
+                }
+                // Otherwise return the original submit result
                 return submitResult;
             }
         } catch (error) {

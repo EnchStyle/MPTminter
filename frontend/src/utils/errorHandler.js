@@ -18,7 +18,7 @@ export const getErrorMessage = (error) => {
     if (error.data?.error === 'tecNO_PERMISSION') {
         // Check if this is a clawback operation
         if (error.data?.request?.TransactionType === 'Clawback') {
-            return 'Cannot clawback: Either you are not the issuer or the token does not have clawback enabled.';
+            return 'Cannot clawback: This could be because (1) the token does not have clawback enabled, (2) you are not the issuer, or (3) MPT clawback is not yet enabled on mainnet.';
         }
         return 'Permission denied: You are not authorized to perform this operation.';
     }

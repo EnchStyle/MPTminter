@@ -52,6 +52,20 @@ const TokenHolderManager = ({ wallet, issuance, onUpdate }) => {
         showSnackbar('Address copied to clipboard', 'success');
     };
 
+    // Debug token details
+    useEffect(() => {
+        if (issuance) {
+            console.log('Token details for clawback:', {
+                MPTokenIssuanceID: issuance.MPTokenIssuanceID,
+                Flags: issuance.Flags,
+                CanClawback: canClawback,
+                BinaryFlags: issuance.Flags?.toString(2),
+                Issuer: issuance.Issuer || wallet?.classicAddress,
+                CurrentWallet: wallet?.classicAddress
+            });
+        }
+    }, [issuance, canClawback, wallet]);
+
     // Load token holders
     const loadHolders = useCallback(async () => {
         if (!issuance?.MPTokenIssuanceID) return;
@@ -160,6 +174,17 @@ const TokenHolderManager = ({ wallet, issuance, onUpdate }) => {
 
         setLoading(true);
         try {
+            // Debug clawback attempt
+            console.log('Attempting clawback:', {
+                issuer: wallet.classicAddress,
+                holder: holder.Account,
+                tokenId: issuance.MPTokenIssuanceID,
+                amount: amount,
+                canClawback: canClawback,
+                flags: issuance.Flags,
+                isLocked: isLocked
+            });
+
             // Scale the amount according to the token's scale
             const scaledAmount = (parseFloat(amount) * Math.pow(10, issuance.AssetScale || 0)).toString();
 
@@ -223,7 +248,11 @@ const TokenHolderManager = ({ wallet, issuance, onUpdate }) => {
                             <Grid item xs={12} sm={6}>
                                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                                     {requiresAuth && <Chip label="Requires Authorization" size="small" color="warning" />}
-                                    {canClawback && <Chip label="Clawback Enabled" size="small" color="error" />}
+                                    {canClawback && (
+                                        <Tooltip title="Clawback may not be fully supported on mainnet yet">
+                                            <Chip label="Clawback Enabled (Beta)" size="small" color="error" />
+                                        </Tooltip>
+                                    )}
                                     {isLocked && <Chip label="Token Locked" size="small" color="error" icon={<AcUnitIcon />} />}
                                 </Box>
                             </Grid>
@@ -395,6 +424,10 @@ const TokenHolderManager = ({ wallet, issuance, onUpdate }) => {
                             This token is currently locked. Unlock it before attempting to clawback.
                         </Alert>
                     )}
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                        <strong>Note:</strong> MPT Clawback functionality may not be fully enabled on XRPL mainnet yet. 
+                        If clawback fails, you may need to wait for full feature activation or request voluntary token return from holders.
+                    </Alert>
                     {clawbackDialog.holder && (
                         <Box sx={{ mb: 2 }}>
                             <Typography variant="body2" color="text.secondary">

@@ -257,6 +257,16 @@ class XRPLService {
             
             // Debug: Log the response to see what fields are available
             console.log(`Total MPTokenIssuance objects fetched: ${response.result.account_objects?.length || 0}`);
+            console.log('Full XRPL response:', response.result);
+            
+            // Log ALL tokens with their outstanding amounts
+            if (response.result.account_objects) {
+                console.log('ALL MPTokenIssuance objects:');
+                response.result.account_objects.forEach((obj, idx) => {
+                    console.log(`Token ${idx + 1}: OutstandingAmount = ${obj.OutstandingAmount || '0'}, Sequence = ${obj.Sequence}`);
+                });
+            }
+            
             if (response.result.account_objects && response.result.account_objects.length > 0) {
                 console.log('MPTokenIssuance objects from account_objects:', response.result.account_objects);
                 // Debug the first issuance in detail

@@ -307,11 +307,9 @@ class XRPLService {
     }
     
     async submitClawback(issuerWallet, holderAddress, mptIssuanceId, amount) {
-        // MPT Clawback might be performed differently than standard Clawback
-        // First, let's try the standard Clawback transaction
+        // MPT Clawback is performed using the Clawback transaction type
         try {
-            // Check if Clawback transaction type is supported
-            const clawbackTx = {
+            const tx = {
                 TransactionType: "Clawback",
                 Account: issuerWallet.classicAddress,
                 Amount: {
@@ -321,33 +319,8 @@ class XRPLService {
                 Holder: holderAddress
             };
             
-            console.log('Attempting standard Clawback transaction:', clawbackTx);
-            
-            try {
-                const result = await this.submitTransaction(clawbackTx, issuerWallet);
-                console.log('Clawback succeeded with standard transaction');
-                return result;
-            } catch (error) {
-                console.log('Standard Clawback failed, trying alternative approach:', error.message);
-                
-                // If standard clawback fails with feature not enabled, try alternative
-                if (error.data?.error === 'temDISABLED' || error.message?.includes('tecNO_PERMISSION')) {
-                    // Alternative: Try Payment transaction from holder to issuer
-                    // This would require holder's signature, so it won't work for forced clawback
-                    console.warn('Clawback transaction type may not be enabled for MPTs on mainnet yet');
-                    
-                    // For now, throw a more descriptive error
-                    const enhancedError = new Error(
-                        'MPT Clawback is not yet supported on mainnet. ' +
-                        'This feature may require the holder to voluntarily return tokens.'
-                    );
-                    enhancedError.data = error.data;
-                    throw enhancedError;
-                }
-                
-                // Re-throw other errors
-                throw error;
-            }
+            console.log('Clawback transaction:', tx);
+            return await this.submitTransaction(tx, issuerWallet);
         } catch (error) {
             console.error('Clawback transaction error:', error);
             throw error;

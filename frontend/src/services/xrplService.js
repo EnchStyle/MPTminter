@@ -96,40 +96,71 @@ class XRPLService {
     }
 
     async submitTransaction(tx, wallet) {
+        console.log('Submitting transaction:', tx);
         const client = await this.getClient();
         
         try {
+            // Log the transaction before autofill
+            console.log('Pre-autofill transaction:', JSON.stringify(tx, null, 2));
+            
             const prepared = await client.autofill(tx);
+            console.log('Autofilled transaction:', JSON.stringify(prepared, null, 2));
+            
             const signed = wallet.sign(prepared);
+            console.log('Transaction signed, hash:', signed.tx_id);
             
             // First try to submit
+            console.log('Submitting to XRPL...');
             const submitResult = await client.submit(signed.tx_blob);
+            console.log('Submit result:', submitResult);
             
             if (submitResult.result.engine_result !== 'tesSUCCESS' && 
                 submitResult.result.engine_result !== 'terQUEUED') {
+                // Log the error details
+                console.error('Transaction failed:', {
+                    engine_result: submitResult.result.engine_result,
+                    engine_result_code: submitResult.result.engine_result_code,
+                    engine_result_message: submitResult.result.engine_result_message,
+                    tx_json: submitResult.result.tx_json
+                });
+                
                 // Return the failed transaction details
                 const error = new Error(submitResult.result.engine_result_message || submitResult.result.engine_result);
-                error.txResult = submitResult.result;
+                error.data = {
+                    error: submitResult.result.engine_result,
+                    error_code: submitResult.result.engine_result_code,
+                    error_message: submitResult.result.engine_result_message,
+                    request: tx,
+                    tx_json: submitResult.result.tx_json
+                };
                 error.txHash = submitResult.result.tx_json?.hash;
-                error.engineResult = submitResult.result.engine_result;
-                error.engineResultCode = submitResult.result.engine_result_code;
                 
                 throw error;
             }
             
             // If submitted successfully, wait for validation
+            console.log('Transaction submitted successfully, waiting for validation...');
             try {
                 const result = await client.waitForTransaction(signed.tx_blob);
+                console.log('Transaction validated:', result);
                 return result;
             } catch (waitError) {
+                console.warn('Wait for transaction failed:', waitError);
                 // If wait fails, still return submit result
                 return submitResult;
             }
         } catch (error) {
-            // Re-throw with transaction details
-            if (error.data) {
-                error.txResult = error.data;
+            console.error('Transaction submission error:', error);
+            
+            // Ensure error has proper structure
+            if (!error.data && error.message) {
+                error.data = {
+                    error: error.code || 'UNKNOWN_ERROR',
+                    error_message: error.message,
+                    request: tx
+                };
             }
+            
             throw error;
         }
     }

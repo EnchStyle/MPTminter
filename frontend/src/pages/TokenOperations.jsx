@@ -146,8 +146,8 @@ const TokenOperations = () => {
     };
 
     const handleDestroy = async (issuance) => {
-        setLoading(true);
         try {
+            setLoading(true);
             // Validate MPTokenIssuanceID before attempting destroy
             if (!issuance.MPTokenIssuanceID) {
                 console.error('Missing MPTokenIssuanceID. Issuance object:', issuance);
@@ -177,17 +177,46 @@ const TokenOperations = () => {
             console.log('Submitting MPTokenIssuanceDestroy transaction:', tx);
 
             const result = await xrplService.submitTransaction(tx, wallet);
+            console.log('Destroy transaction result:', result);
 
-            if (result.result.validated) {
+            // Check if transaction was successful
+            // The result structure can vary depending on whether we got it from submit or waitForTransaction
+            const validated = result.result?.validated || result.validated;
+            const meta = result.result?.meta || result.meta;
+            
+            if (validated) {
                 showSnackbar('Token issuance destroyed successfully!', 'success');
                 await loadIssuances(); // Reload to remove destroyed issuance
             } else {
+                console.error('Transaction not validated:', result);
                 throw new Error('Transaction failed validation');
             }
         } catch (error) {
-            const errorMsg = formatErrorWithDetails(error, error.txHash);
+            console.error('Destroy transaction error:', error);
+            console.error('Error details:', {
+                message: error.message,
+                data: error.data,
+                stack: error.stack
+            });
+            
+            let errorMsg = 'Failed to destroy token issuance';
+            
+            try {
+                errorMsg = formatErrorWithDetails(error, error.txHash);
+            } catch (formatError) {
+                console.error('Error formatting error message:', formatError);
+                // Fallback to basic error message
+                errorMsg = error.message || 'Unknown error occurred';
+            }
+            
             showSnackbar(errorMsg, 'error');
         } finally {
+            setLoading(false);
+            setConfirmDialog({ open: false, action: null });
+            setSelectedIssuance(null);
+        } catch (outerError) {
+            console.error('Uncaught error in handleDestroy:', outerError);
+            showSnackbar('An unexpected error occurred. Please check the console.', 'error');
             setLoading(false);
             setConfirmDialog({ open: false, action: null });
             setSelectedIssuance(null);
@@ -508,7 +537,14 @@ const TokenOperations = () => {
                         Cancel
                     </Button>
                     <Button
-                        onClick={() => handleDestroy(selectedIssuance)}
+                        onClick={async () => {
+                            try {
+                                console.log('Destroy button clicked, selectedIssuance:', selectedIssuance);
+                                await handleDestroy(selectedIssuance);
+                            } catch (error) {
+                                console.error('Error in destroy button onClick:', error);
+                            }
+                        }}
                         variant="contained"
                         color="error"
                         disabled={loading}

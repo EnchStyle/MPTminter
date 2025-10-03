@@ -201,14 +201,26 @@ const TokenOperations = () => {
             // Check if transaction was successful
             // The result structure can vary depending on whether we got it from submit or waitForTransaction
             const validated = result.result?.validated || result.validated;
-            const meta = result.result?.meta || result.meta;
+            const engineResult = result.result?.engine_result;
+            const txHash = result.result?.hash || result.result?.tx_json?.hash;
             
-            if (validated) {
-                showSnackbar('Token issuance destroyed successfully!', 'success');
+            console.log('Transaction result details:', {
+                validated,
+                engineResult,
+                txHash,
+                fullResult: result
+            });
+            
+            if (validated || engineResult === 'tesSUCCESS') {
+                const successMsg = txHash ? 
+                    `Token issuance destroyed successfully! Transaction: ${txHash}` :
+                    'Token issuance destroyed successfully!';
+                showSnackbar(successMsg, 'success');
+                console.log('Destroy successful, transaction hash:', txHash);
                 await loadIssuances(); // Reload to remove destroyed issuance
             } else {
                 console.error('Transaction not validated:', result);
-                throw new Error('Transaction failed validation');
+                throw new Error(`Transaction failed: ${engineResult || 'Unknown error'}`);
             }
         } catch (error) {
             console.error('Destroy transaction error:', error);

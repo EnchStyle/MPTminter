@@ -184,12 +184,14 @@ class XRPLService {
                 // If lookup fails, check the submit result
                 if (submitResult.result.engine_result === 'tesSUCCESS') {
                     // Transaction was submitted successfully, assume it will validate
+                    const txHash = submitResult.result.tx_json?.hash || signed.hash || signed.tx_id;
+                    console.log('Transaction submitted with tesSUCCESS, hash:', txHash);
                     return {
                         result: {
                             validated: true,
                             engine_result: submitResult.result.engine_result,
                             tx_json: submitResult.result.tx_json,
-                            hash: submitResult.result.tx_json?.hash || signed.tx_id
+                            hash: txHash
                         }
                     };
                 }

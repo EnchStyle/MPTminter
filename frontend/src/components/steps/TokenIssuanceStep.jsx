@@ -20,6 +20,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import SendIcon from '@mui/icons-material/Send';
 import * as xrpl from 'xrpl';
+import { validationService } from '../../services/validationService';
 
 const TokenIssuanceStep = React.memo(({ 
     formData, 
@@ -46,17 +47,30 @@ const TokenIssuanceStep = React.memo(({
         const value = e.target.value.trim();
         setRecipientAddress(value);
         setFormData(prev => ({ ...prev, recipientAddress: value }));
-    }, [setFormData]);
+        
+        // Clear error when user starts typing
+        if (errors?.recipientAddress) {
+            setError('recipientAddress', null);
+        }
+    }, [setFormData, errors, setError]);
 
     const handleAmountChange = useCallback((e) => {
         const value = e.target.value;
         setAmount(value);
         setFormData(prev => ({ ...prev, amount: value }));
-    }, [setFormData]);
+        
+        // Clear error when user starts typing
+        if (errors?.amount) {
+            setError('amount', null);
+        }
+    }, [setFormData, errors, setError]);
 
     const handleAuthorizeHolder = useCallback(async () => {
-        if (!recipientAddress) {
-            showSnackbar('Please enter recipient address', 'error');
+        // Validate address
+        const addressError = validationService.validateXRPLAddress(recipientAddress);
+        if (addressError) {
+            setError('recipientAddress', addressError);
+            showSnackbar(addressError, 'error');
             return;
         }
 
@@ -69,11 +83,14 @@ const TokenIssuanceStep = React.memo(({
         } finally {
             setAuthorizing(false);
         }
-    }, [recipientAddress, onAuthorizeHolder, showSnackbar]);
+    }, [recipientAddress, onAuthorizeHolder, showSnackbar, setError]);
 
     const handleIssueTokens = useCallback(async () => {
-        if (!amount) {
-            showSnackbar('Please enter amount to issue', 'error');
+        // Validate amount
+        const amountError = validationService.validateAmount(amount, formData.assetScale || 0);
+        if (amountError) {
+            setError('amount', amountError);
+            showSnackbar(amountError, 'error');
             return;
         }
 
@@ -85,7 +102,7 @@ const TokenIssuanceStep = React.memo(({
         } finally {
             setIssuing(false);
         }
-    }, [amount, onIssueTokens, showSnackbar]);
+    }, [amount, formData.assetScale, onIssueTokens, showSnackbar, setError]);
 
     // For non-restricted tokens, skip to issuance
     React.useEffect(() => {

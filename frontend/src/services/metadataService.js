@@ -66,7 +66,6 @@ class MetadataService {
                 weblinks: metadata.w || []
             };
         } catch (error) {
-            console.error('Failed to parse metadata:', error);
             return null;
         }
     }

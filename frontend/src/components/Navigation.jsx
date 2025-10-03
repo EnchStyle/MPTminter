@@ -64,7 +64,6 @@ const Navigation = ({ children }) => {
     ];
 
     const handleNavigate = (path) => {
-        console.log('Navigating to:', path);
         navigate(path);
         setDrawerOpen(false);
     };

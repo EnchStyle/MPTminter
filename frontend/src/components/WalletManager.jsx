@@ -71,7 +71,6 @@ const WalletManager = ({ onWalletChange }) => {
                     client = await xrplService.getClient();
                     break;
                 } catch (connError) {
-                    console.warn(`XRPL connection attempt failed, retries left: ${retries - 1}`, connError);
                     retries--;
                     if (retries > 0) {
                         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -112,7 +111,6 @@ const WalletManager = ({ onWalletChange }) => {
                 setShowSecret(false); // Hide secret after successful connect
             }
         } catch (err) {
-            console.error('Wallet connection error:', err);
             
             // More specific error messages
             if (err.message?.includes('Account not found')) {
@@ -127,7 +125,6 @@ const WalletManager = ({ onWalletChange }) => {
             
             // Don't show error dialog for auto-connect failures
             if (isAutoConnect) {
-                console.log('Auto-connect failed, user can connect manually');
                 sessionService.clearSession();
             }
         } finally {
@@ -154,7 +151,7 @@ const WalletManager = ({ onWalletChange }) => {
                 onWalletChange(null, null);
             }
         } catch (err) {
-            console.error('Disconnect error:', err);
+            // Silent fail on disconnect error
         } finally {
             setLoading(false);
         }
@@ -245,8 +242,10 @@ const WalletManager = ({ onWalletChange }) => {
             >
                 <DialogTitle>Connect Wallet</DialogTitle>
                 <DialogContent>
-                    <Alert severity="info" sx={{ mb: 3 }}>
-                        Enter your XRPL wallet secret key to connect. This is never sent to any server.
+                    <Alert severity="warning" sx={{ mb: 3 }}>
+                        <strong>⚠️ SECURITY WARNING:</strong> Your secret key will be stored in browser storage for convenience. 
+                        Only use test wallets or wallets with minimal funds. For production use, consider using a hardware wallet 
+                        or secure key management solution. Never enter your main wallet's secret key in a web application.
                     </Alert>
                     
                     {error && (
@@ -281,9 +280,10 @@ const WalletManager = ({ onWalletChange }) => {
                         helperText="Your secret key starts with 's' and is used to sign transactions"
                     />
 
-                    <Alert severity="warning" sx={{ mt: 2 }}>
-                        <strong>Security Notice:</strong> Never share your secret key with anyone. 
-                        Make sure you're on the correct website.
+                    <Alert severity="error" sx={{ mt: 2 }}>
+                        <strong>🚨 IMPORTANT:</strong> This app stores your secret key in browser localStorage without encryption. 
+                        This is NOT secure for production use. Anyone with access to your browser can steal your keys. 
+                        Only use test wallets or create a new wallet specifically for testing this application.
                     </Alert>
                 </DialogContent>
                 <DialogActions>

@@ -70,6 +70,41 @@ class ValidationService {
         
         return true;
     }
+
+    validateXRPLAddress(address) {
+        if (!address) return 'Address is required';
+        if (!address.startsWith('r')) return 'XRPL addresses must start with "r"';
+        if (address.length !== 34) return 'Invalid address length';
+        if (!/^r[1-9A-HJ-NP-Za-km-z]{33}$/.test(address)) return 'Invalid XRPL address format';
+        return null;
+    }
+
+    validateAmount(amount, assetScale = 0) {
+        if (!amount && amount !== 0) return 'Amount is required';
+        const num = parseFloat(amount);
+        if (isNaN(num) || num <= 0) return 'Amount must be a positive number';
+        const decimalPlaces = (amount.toString().split('.')[1] || '').length;
+        if (decimalPlaces > assetScale) return `Amount cannot have more than ${assetScale} decimal places`;
+        return null;
+    }
+
+    validateMaxAmount(maxAmount) {
+        if (!maxAmount) return null; // Optional field
+        const num = parseFloat(maxAmount);
+        if (isNaN(num) || num <= 0) return 'Maximum amount must be a positive number';
+        if (num > Number.MAX_SAFE_INTEGER) return 'Maximum amount exceeds the allowed limit';
+        return null;
+    }
+
+    validateUrl(url) {
+        if (!url) return null; // Optional field
+        try {
+            new URL(url);
+            return null;
+        } catch {
+            return 'Invalid URL format';
+        }
+    }
 }
 
 export const validationService = new ValidationService();

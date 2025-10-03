@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { 
     Card, 
     CardContent,
@@ -14,7 +14,6 @@ import {
     Dialog,
     DialogTitle,
     DialogContent,
-    DialogActions,
     CircularProgress
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
@@ -25,6 +24,7 @@ import { xrplService } from './services/xrplService';
 import { sessionService } from './services/sessionService';
 import { validationService } from './services/validationService';
 import { metadataService } from './services/metadataService';
+import { getErrorMessage } from './utils/errorHandler';
 
 // Hooks
 import { useXRPLConnection } from './hooks/useXRPLConnection';
@@ -48,7 +48,7 @@ import MPTokenManager from './components/MPTokenManager';
 import { STEPS } from './utils/constants';
 
 function App() {
-    const { connectionStatus, retryCount, connect, disconnect } = useXRPLConnection();
+    const { connectionStatus, connect } = useXRPLConnection();
     const { resumeData, saveSession, clearSession } = useSession();
     const { errors, validateField, validateStep, clearErrors } = useFormValidation();
 
@@ -287,8 +287,8 @@ function App() {
                 throw new Error('Transaction failed validation');
             }
         } catch (err) {
-            console.error('Create token error:', err);
-            showSnackbar(err.message || 'Failed to create token', 'error');
+            const errorMsg = getErrorMessage(err);
+            showSnackbar(errorMsg, 'error');
         } finally {
             setLoading(false);
         }
@@ -339,8 +339,8 @@ function App() {
                 showSnackbar('Authorization successful!', 'success');
             }
         } catch (err) {
-            console.error('Authorize error:', err);
-            showSnackbar(err.message || 'Failed to authorize holder', 'error');
+            const errorMsg = getErrorMessage(err);
+            showSnackbar(errorMsg, 'error');
         } finally {
             setLoading(false);
         }
@@ -383,8 +383,8 @@ function App() {
                 handleNext();
             }
         } catch (err) {
-            console.error('Issue tokens error:', err);
-            showSnackbar(err.message || 'Failed to issue tokens', 'error');
+            const errorMsg = getErrorMessage(err);
+            showSnackbar(errorMsg, 'error');
         } finally {
             setLoading(false);
         }
@@ -430,7 +430,7 @@ function App() {
 
     const renderStepContent = () => {
         switch (activeStep) {
-            case 0:
+            case 0: {
                 // Check if wallet is already connected from navigation
                 const savedWalletData = sessionService.getWalletData();
                 const hasWalletInNav = savedWalletData && savedWalletData.seed && wallet;
@@ -463,6 +463,7 @@ function App() {
                         />
                     );
                 }
+            }
             case 1:
                 return (
                     <TokenInfoStep

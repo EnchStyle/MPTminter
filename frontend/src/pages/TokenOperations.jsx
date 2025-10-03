@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
     Container,
     Typography,
@@ -6,7 +6,6 @@ import {
     CardContent,
     Grid,
     Button,
-    TextField,
     Alert,
     Snackbar,
     Box,
@@ -15,12 +14,9 @@ import {
     DialogTitle,
     DialogContent,
     DialogActions,
-    ToggleButton,
-    ToggleButtonGroup,
     CircularProgress,
     List,
     ListItem,
-    ListItemText,
     ListItemSecondaryAction,
     IconButton,
     Tooltip,
@@ -30,12 +26,12 @@ import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import InfoIcon from '@mui/icons-material/Info';
 import TokenIcon from '@mui/icons-material/Token';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { xrplService } from '../services/xrplService';
 import { sessionService } from '../services/sessionService';
 import { metadataService } from '../services/metadataService';
+import { formatErrorWithDetails } from '../utils/errorHandler';
 import * as xrpl from 'xrpl';
 
 const TokenOperations = () => {
@@ -55,7 +51,7 @@ const TokenOperations = () => {
                 const wallet = xrpl.Wallet.fromSeed(savedData.seed);
                 setWallet(wallet);
             } catch (error) {
-                console.error('Failed to restore wallet:', error);
+                // Silent fail - user can manually connect if needed
             }
         }
     }, []);
@@ -67,21 +63,27 @@ const TokenOperations = () => {
         setLoading(true);
         try {
             const issuances = await xrplService.getMPTokenIssuances(wallet.classicAddress);
-            console.log('Raw issuances from XRPL:', issuances);
             
             // Parse metadata for each issuance
             const issuancesWithMetadata = issuances.map(issuance => {
-                console.log('Individual issuance object:', issuance);
                 const metadata = issuance.MPTokenMetadata ? 
                     metadataService.parseMetadata(issuance.MPTokenMetadata) : null;
-                // The ID might be in a different field
-                const id = issuance.MPTokenIssuanceID || issuance.index || issuance.ID;
+                
+                // Extract the MPTokenIssuanceID from the response
+                // According to XLS-0033, MPTokenIssuanceID is a 192-bit (48 hex character) value
+                // The 'index' field (64 chars) is the ledger object ID, not the MPTokenIssuanceID
+                let id = issuance.MPTokenIssuanceID;
+                
+                // Validate the ID format
+                if (!id || id.length !== 48) {
+                    console.warn(`Invalid MPTokenIssuanceID format: ${id}`);
+                }
+                
                 return { ...issuance, metadata, MPTokenIssuanceID: id };
             });
             
             setIssuances(issuancesWithMetadata);
         } catch (error) {
-            console.error('Failed to load issuances:', error);
             showSnackbar('Failed to load token issuances', 'error');
         } finally {
             setLoading(false);
@@ -115,7 +117,6 @@ const TokenOperations = () => {
                 Flags: lock ? 0x0001 : 0x0002 // tfMPTLock : tfMPTUnlock
             };
 
-            console.log('Attempting MPTokenIssuanceSet with:', tx);
             const result = await xrplService.submitTransaction(tx, wallet);
 
             if (result.result.validated) {
@@ -125,17 +126,8 @@ const TokenOperations = () => {
                 throw new Error('Transaction failed validation');
             }
         } catch (error) {
-            console.error(`Failed to ${lock ? 'lock' : 'unlock'} tokens:`, error);
-            let errorMessage = error.message || 'Unknown error';
-            
-            // Handle specific error cases
-            if (errorMessage.includes('Invalid field TransactionType')) {
-                errorMessage = 'MPTokenIssuanceSet may not be activated on mainnet yet.';
-            } else if (errorMessage.includes('NotEnabled')) {
-                errorMessage = 'This MPT feature is not yet enabled on mainnet.';
-            }
-            
-            showSnackbar(`Failed to ${lock ? 'lock' : 'unlock'} tokens: ${errorMessage}`, 'error');
+            const errorMsg = formatErrorWithDetails(error);
+            showSnackbar(errorMsg, 'error');
         } finally {
             setLoading(false);
             setOperation(null);
@@ -158,7 +150,6 @@ const TokenOperations = () => {
                 MPTokenIssuanceID: issuance.MPTokenIssuanceID
             };
 
-            console.log('Attempting MPTokenIssuanceDestroy with:', tx);
             const result = await xrplService.submitTransaction(tx, wallet);
 
             if (result.result.validated) {
@@ -168,32 +159,8 @@ const TokenOperations = () => {
                 throw new Error('Transaction failed validation');
             }
         } catch (error) {
-            console.error('Failed to destroy issuance - Full error:', error);
-            console.error('Error response:', error.response);
-            console.error('Error data:', error.data);
-            console.error('Transaction result:', error.txResult);
-            
-            let errorMessage = error.message || 'Unknown error';
-            
-            // Show transaction hash if available
-            if (error.txHash) {
-                errorMessage += ` (TX: ${error.txHash})`;
-                console.log('Failed transaction hash:', error.txHash);
-                console.log('View on explorer:', xrplService.getExplorerUrl(error.txHash));
-            }
-            
-            // Handle specific error cases
-            if (errorMessage.includes('Invalid field TransactionType')) {
-                // Log the exact error for debugging
-                console.error('TransactionType error - exact message:', errorMessage);
-                errorMessage += ' - MPTokenIssuanceDestroy may not be activated on mainnet yet.';
-            } else if (errorMessage.includes('NotEnabled')) {
-                errorMessage = 'This MPT feature is not yet enabled on mainnet.';
-            } else if (errorMessage.includes('temDISABLED')) {
-                errorMessage = 'This transaction type is currently disabled.';
-            }
-            
-            showSnackbar(`Failed to destroy issuance: ${errorMessage}`, 'error');
+            const errorMsg = formatErrorWithDetails(error, error.txHash);
+            showSnackbar(errorMsg, 'error');
         } finally {
             setLoading(false);
             setConfirmDialog({ open: false, action: null });
@@ -201,7 +168,7 @@ const TokenOperations = () => {
         }
     };
 
-    const checkTokenHolders = async (mptIssuanceId) => {
+    /* const checkTokenHolders = async (mptIssuanceId) => {
         try {
             // Get all MPToken objects for this issuance
             const holders = await xrplService.getMPTokenHolders(mptIssuanceId);
@@ -213,12 +180,11 @@ const TokenOperations = () => {
             
             return activeHolders;
         } catch (error) {
-            console.error('Error checking token holders:', error);
             // Return empty array on error to allow destroy attempt
             // The XRPL will reject if there are actually holders
             return [];
         }
-    };
+    }; */
 
     const formatFlags = (flags) => {
         const flagList = [];

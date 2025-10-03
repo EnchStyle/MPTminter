@@ -14,14 +14,25 @@ import {
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import { validationService } from '../../services/validationService';
 
 const MetadataStep = React.memo(({
     formData,
     setFormData,
-    metadataService
+    metadataService,
+    errors = {},
+    setError
 }) => {
     const handleFieldChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
+        
+        // Validate URL fields
+        if (field === 'iconUrl' && value) {
+            const urlError = validationService.validateUrl(value);
+            if (setError) {
+                setError(field, urlError);
+            }
+        }
     };
 
     const handleWeblinkChange = (index, field, value) => {

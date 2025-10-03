@@ -58,7 +58,6 @@ class XRPLService {
             return newClient;
         } catch (err) {
             this.connectionStatus = 'error';
-            console.error('XRPL connection failed:', err);
             
             if (this.retryAttempts < this.maxRetryAttempts) {
                 this.retryAttempts++;
@@ -77,7 +76,7 @@ class XRPLService {
             try {
                 await this.client.disconnect();
             } catch (err) {
-                console.warn('Error disconnecting client:', err);
+                // Silent fail on disconnect error
             }
         }
         this.client = null;
@@ -105,8 +104,6 @@ class XRPLService {
             
             // First try to submit
             const submitResult = await client.submit(signed.tx_blob);
-            console.log('Submit result:', submitResult);
-            console.log('Transaction hash:', submitResult.result.tx_json?.hash);
             
             if (submitResult.result.engine_result !== 'tesSUCCESS' && 
                 submitResult.result.engine_result !== 'terQUEUED') {
@@ -117,10 +114,6 @@ class XRPLService {
                 error.engineResult = submitResult.result.engine_result;
                 error.engineResultCode = submitResult.result.engine_result_code;
                 
-                // Log for debugging
-                console.error('Transaction failed with engine result:', submitResult.result.engine_result);
-                console.error('Full submit result:', submitResult);
-                
                 throw error;
             }
             
@@ -130,11 +123,9 @@ class XRPLService {
                 return result;
             } catch (waitError) {
                 // If wait fails, still return submit result
-                console.warn('Wait for transaction failed, returning submit result:', waitError);
                 return submitResult;
             }
         } catch (error) {
-            console.error('Transaction submission error:', error);
             // Re-throw with transaction details
             if (error.data) {
                 error.txResult = error.data;
@@ -169,7 +160,6 @@ class XRPLService {
             });
             return response.result.account_objects || [];
         } catch (e) {
-            console.error('Error fetching MPTokens:', e);
             return [];
         }
     }
@@ -184,15 +174,17 @@ class XRPLService {
             });
             return response.result.account_objects || [];
         } catch (e) {
-            console.error('Error fetching MPTokenIssuances:', e);
             return [];
         }
     }
 
-    async getMPTokenHolders(mptIssuanceId) {
-        // For now, return empty array to allow destroy attempts
-        // The XRPL will reject the transaction if there are actual holders
-        // TODO: Implement proper holder checking when API supports it
+    async getMPTokenHolders() {
+        // Note: XRPL doesn't provide a direct API to get all holders of an MPToken.
+        // The destroy transaction will fail with tecHAS_OBLIGATIONS if holders exist.
+        // This limitation is by design to prevent enumerating all token holders.
+        // 
+        // Future consideration: When holder enumeration becomes available, update this method.
+        // For now, we return an empty array and let the XRPL validate the destroy operation.
         return [];
     }
 

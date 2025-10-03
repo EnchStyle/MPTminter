@@ -10,6 +10,7 @@ import {
     Alert,
     AlertTitle
 } from '@mui/material';
+import { validationService } from '../../services/validationService';
 
 const TokenConfigStep = React.memo(({
     formData,
@@ -19,7 +20,19 @@ const TokenConfigStep = React.memo(({
 }) => {
     const handleFieldChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
-        validateField(field, value);
+        
+        // Additional validation for maxAmount
+        if (field === 'maxAmount' && value) {
+            const error = validationService.validateMaxAmount(value);
+            if (error && validateField) {
+                validateField(field, value, error);
+                return;
+            }
+        }
+        
+        if (validateField) {
+            validateField(field, value);
+        }
     };
 
     const handleCapabilityChange = (capability) => {

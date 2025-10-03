@@ -25,6 +25,8 @@ import { sessionService } from './services/sessionService';
 import { validationService } from './services/validationService';
 import { metadataService } from './services/metadataService';
 import { getErrorMessage } from './utils/errorHandler';
+import { extractMPTokenIssuanceIDFromTx } from './utils/xrplHelpers';
+import { debugTransactionResult } from './utils/debugMPToken';
 
 // Hooks
 import { useXRPLConnection } from './hooks/useXRPLConnection';
@@ -269,29 +271,11 @@ function App() {
             const result = await xrplService.submitTransaction(tx, wallet);
             
             if (result.result.validated) {
-                // Debug: Log the full transaction result to understand the structure
-                const { debugMPTokenCreationResult } = await import('./utils/debugMPToken.js');
-                debugMPTokenCreationResult(result);
+                // Debug the transaction result
+                debugTransactionResult(result.result);
                 
-                // Extract the MPTokenIssuanceID from the transaction result
-                let mptIssuanceId = null;
-                
-                // Look in CreatedNodes for the MPTokenIssuance
-                if (result.result.meta.CreatedNodes) {
-                    const createdNode = result.result.meta.CreatedNodes.find(
-                        node => node.CreatedNode?.LedgerEntryType === 'MPTokenIssuance'
-                    );
-                    if (createdNode) {
-                        console.log('Found CreatedNode:', createdNode);
-                        // For MPTokenIssuance objects, the index IS the MPTokenIssuanceID
-                        mptIssuanceId = createdNode.CreatedNode?.index;
-                    }
-                }
-                
-                // Fallback to meta field if available
-                if (!mptIssuanceId) {
-                    mptIssuanceId = result.result.meta.mpt_issuance_id;
-                }
+                // Extract the MPTokenIssuanceID using our helper
+                const mptIssuanceId = extractMPTokenIssuanceIDFromTx(result.result);
                 
                 if (!mptIssuanceId) {
                     console.error('Could not extract MPTokenIssuanceID from transaction result');

@@ -86,8 +86,8 @@ const TokenOperations = () => {
                 if (!id) {
                     console.error('Could not determine MPTokenIssuanceID for issuance:', issuance);
                     console.error('Available fields:', Object.keys(issuance));
-                } else if (id.length !== 64) {
-                    console.warn(`Invalid MPTokenIssuanceID format: ${id} (length: ${id.length}, expected: 64)`);
+                } else if (id.length !== 48 && id.length !== 64) {
+                    console.warn(`Unusual MPTokenIssuanceID length: ${id} (length: ${id.length})`);
                 }
                 
                 return { ...issuance, metadata, MPTokenIssuanceID: id };
@@ -155,9 +155,9 @@ const TokenOperations = () => {
                 return;
             }
             
-            if (issuance.MPTokenIssuanceID.length !== 64) {
+            if (issuance.MPTokenIssuanceID.length !== 48 && issuance.MPTokenIssuanceID.length !== 64) {
                 console.error('Invalid MPTokenIssuanceID format:', issuance.MPTokenIssuanceID);
-                showSnackbar(`Cannot destroy: Invalid token ID format (${issuance.MPTokenIssuanceID.length} chars, expected 64)`, 'error');
+                showSnackbar(`Cannot destroy: Invalid token ID format (${issuance.MPTokenIssuanceID.length} chars)`, 'error');
                 return;
             }
             

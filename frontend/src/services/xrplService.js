@@ -335,10 +335,19 @@ class XRPLService {
             console.error('MPT Clawback error:', error);
             
             if (error.data?.error === 'tecNO_PERMISSION') {
+                // Check the transaction details to provide more specific error
+                console.log('Clawback tecNO_PERMISSION details:', {
+                    error: error.data,
+                    tx: tx,
+                    issuer: issuerWallet.classicAddress
+                });
+                
                 // Enhanced error for MPT clawback permission issues
                 const enhancedError = new Error(
-                    'MPT Clawback permission denied. Ensure: (1) You are the issuer, ' +
-                    '(2) The token has CanClawback flag enabled, (3) The token is not locked.'
+                    'MPT Clawback failed with tecNO_PERMISSION. This likely means the Clawback ' +
+                    'transaction type doesn\'t fully support MPTs on mainnet yet, even though the ' +
+                    'CanClawback flag exists. This is a known limitation. Alternative: request ' +
+                    'voluntary token return from holders.'
                 );
                 enhancedError.data = error.data;
                 throw enhancedError;

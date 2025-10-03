@@ -196,7 +196,12 @@ const TokenHolderManager = ({ wallet, issuance, onUpdate }) => {
                 amount: amount,
                 canClawback: canClawback,
                 flags: issuance.Flags,
-                isLocked: isLocked
+                flagBinary: issuance.Flags?.toString(2).padStart(8, '0'),
+                currentFlags: issuance.CurrentFlags,
+                currentFlagsBinary: issuance.CurrentFlags?.toString(2).padStart(8, '0'),
+                isLocked: isLocked,
+                holderBalance: holder.MPTokenAmount,
+                scaledAmount: scaledAmount
             });
 
             // Scale the amount according to the token's scale
@@ -419,6 +424,11 @@ const TokenHolderManager = ({ wallet, issuance, onUpdate }) => {
                 <DialogContent>
                     <Alert severity="warning" sx={{ mb: 2 }}>
                         This will forcibly return tokens from the holder to you.
+                    </Alert>
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                        <strong>Known Issue:</strong> MPT clawback may fail with "No Permission" error even if all 
+                        requirements are met. This appears to be because the Clawback transaction type doesn't 
+                        fully support MPTs on mainnet yet, despite the CanClawback flag being available.
                     </Alert>
                     {!canClawback && (
                         <Alert severity="error" sx={{ mb: 2 }}>

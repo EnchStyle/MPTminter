@@ -29,12 +29,14 @@ import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import TokenIcon from '@mui/icons-material/Token';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import PeopleIcon from '@mui/icons-material/People';
 import { xrplService } from '../services/xrplService';
 import { sessionService } from '../services/sessionService';
 import { metadataService } from '../services/metadataService';
 import { formatErrorWithDetails } from '../utils/errorHandler';
 import { extractMPTokenIssuanceID } from '../utils/mptokenUtils';
 import { debugMPTokenIssuance } from '../utils/debugMPToken';
+import TokenHolderManager from '../components/TokenHolderManager';
 import * as xrpl from 'xrpl';
 
 const TokenOperations = () => {
@@ -48,6 +50,8 @@ const TokenOperations = () => {
     const [transactionStatus, setTransactionStatus] = useState({ processing: false, message: '', txHash: null });
     const [destroyInProgress, setDestroyInProgress] = useState(false);
     const [destroyConfirmText, setDestroyConfirmText] = useState('');
+    const [selectedTokenForHolders, setSelectedTokenForHolders] = useState(null);
+    const [holdersDialog, setHoldersDialog] = useState(false);
 
     // Load wallet from session
     useEffect(() => {
@@ -579,6 +583,23 @@ const TokenOperations = () => {
                                                         Destroy
                                                     </Button>
                                                 </Tooltip>
+                                                {/* Manage Holders button for tokens with RequireAuth or CanClawback */}
+                                                {(flags.includes('RequireAuth') || flags.includes('CanClawback')) && (
+                                                    <Tooltip title="Manage holders">
+                                                        <Button
+                                                            onClick={() => {
+                                                                setSelectedTokenForHolders(issuance);
+                                                                setHoldersDialog(true);
+                                                            }}
+                                                            disabled={loading || destroyInProgress || transactionStatus.processing}
+                                                            startIcon={<PeopleIcon />}
+                                                            size="small"
+                                                            variant="text"
+                                                        >
+                                                            Holders
+                                                        </Button>
+                                                    </Tooltip>
+                                                )}
                                             </Box>
                                         </ListItemSecondaryAction>
                                     </ListItem>
@@ -806,6 +827,49 @@ const TokenOperations = () => {
                         )}
                     </Box>
                 </DialogContent>
+            </Dialog>
+
+            {/* Token Holder Management Dialog */}
+            <Dialog
+                open={holdersDialog}
+                onClose={() => setHoldersDialog(false)}
+                maxWidth="md"
+                fullWidth
+            >
+                <DialogTitle>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {selectedTokenForHolders?.metadata?.iconUrl && (
+                            <Avatar 
+                                src={selectedTokenForHolders.metadata.iconUrl} 
+                                sx={{ width: 32, height: 32 }}
+                            />
+                        )}
+                        <Box>
+                            <Typography variant="h6">
+                                {selectedTokenForHolders?.metadata?.name || 'Token'} Holders
+                            </Typography>
+                            {selectedTokenForHolders?.metadata?.currencyCode && (
+                                <Typography variant="caption" color="text.secondary">
+                                    {selectedTokenForHolders.metadata.currencyCode}
+                                </Typography>
+                            )}
+                        </Box>
+                    </Box>
+                </DialogTitle>
+                <DialogContent>
+                    {selectedTokenForHolders && (
+                        <TokenHolderManager
+                            wallet={wallet}
+                            issuance={selectedTokenForHolders}
+                            onUpdate={loadIssuances}
+                        />
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setHoldersDialog(false)}>
+                        Close
+                    </Button>
+                </DialogActions>
             </Dialog>
 
             <Snackbar

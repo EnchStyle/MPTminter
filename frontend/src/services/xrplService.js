@@ -305,6 +305,27 @@ class XRPLService {
         // For now, we return an empty array and let the XRPL validate the destroy operation.
         return [];
     }
+    
+    async submitClawback(issuerWallet, holderAddress, mptIssuanceId, amount) {
+        // Clawback in XLS-0033 is performed through a special Payment transaction
+        // The issuer can clawback tokens from any holder
+        try {
+            const tx = {
+                TransactionType: "Clawback",
+                Account: issuerWallet.classicAddress,
+                Amount: {
+                    mpt_issuance_id: mptIssuanceId,
+                    value: amount
+                },
+                Holder: holderAddress
+            };
+            
+            return await this.submitTransaction(tx, issuerWallet);
+        } catch (error) {
+            console.error('Clawback transaction error:', error);
+            throw error;
+        }
+    }
 
     getConnectionStatus() {
         return this.connectionStatus;

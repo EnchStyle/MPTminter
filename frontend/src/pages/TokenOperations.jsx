@@ -214,12 +214,6 @@ const TokenOperations = () => {
             setLoading(false);
             setConfirmDialog({ open: false, action: null });
             setSelectedIssuance(null);
-        } catch (outerError) {
-            console.error('Uncaught error in handleDestroy:', outerError);
-            showSnackbar('An unexpected error occurred. Please check the console.', 'error');
-            setLoading(false);
-            setConfirmDialog({ open: false, action: null });
-            setSelectedIssuance(null);
         }
     };
 

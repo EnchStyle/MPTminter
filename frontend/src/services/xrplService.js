@@ -248,13 +248,15 @@ class XRPLService {
             const response = await client.request({
                 command: 'account_objects',
                 account: issuerAddress,
-                type: 'MPTokenIssuance'
+                type: 'MPTokenIssuance',
+                limit: 400  // Fetch up to 400 objects (maximum allowed)
             });
             
             // Import debug utility at runtime to avoid circular dependencies
             const { debugMPTokenIssuance } = await import('../utils/debugMPToken.js');
             
             // Debug: Log the response to see what fields are available
+            console.log(`Total MPTokenIssuance objects fetched: ${response.result.account_objects?.length || 0}`);
             if (response.result.account_objects && response.result.account_objects.length > 0) {
                 console.log('MPTokenIssuance objects from account_objects:', response.result.account_objects);
                 // Debug the first issuance in detail

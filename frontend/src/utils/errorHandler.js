@@ -20,7 +20,7 @@ export const getErrorMessage = (error) => {
         if (error.data?.request?.TransactionType === 'Clawback') {
             // Check if this is an MPT clawback attempt
             if (error.data?.request?.Amount?.mpt_issuance_id) {
-                return 'MPT Clawback Error: The Clawback transaction type is only for IOUs (issued currencies), not MPTs. MPT clawback may require a different implementation method.';
+                return 'MPT Clawback failed: Ensure you are the issuer, the token has CanClawback enabled, and is not locked.';
             }
             return 'Cannot clawback: Either the token does not have clawback enabled or you are not the issuer.';
         }

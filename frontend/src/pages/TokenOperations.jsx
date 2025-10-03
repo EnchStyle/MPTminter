@@ -33,6 +33,7 @@ import { sessionService } from '../services/sessionService';
 import { metadataService } from '../services/metadataService';
 import { formatErrorWithDetails } from '../utils/errorHandler';
 import { extractMPTokenIssuanceID } from '../utils/mptokenUtils';
+import { debugMPTokenIssuance } from '../utils/debugMPToken';
 import * as xrpl from 'xrpl';
 
 const TokenOperations = () => {
@@ -70,12 +71,14 @@ const TokenOperations = () => {
             console.log('Stored issuances:', storedIssuances);
             
             // Parse metadata for each issuance
-            const issuancesWithMetadata = issuances.map(issuance => {
+            const issuancesWithMetadata = issuances.map((issuance, idx) => {
                 const metadata = issuance.MPTokenMetadata ? 
                     metadataService.parseMetadata(issuance.MPTokenMetadata) : null;
                 
                 // Debug: Log the issuance object to see what fields are available
-                console.log('Issuance object:', issuance);
+                if (idx === 0) {  // Only debug the first one to avoid clutter
+                    debugMPTokenIssuance(issuance, 'Token Operations - First Issuance');
+                }
                 
                 // Extract the MPTokenIssuanceID using our utility function
                 const id = extractMPTokenIssuanceID(issuance, storedIssuances);
@@ -83,8 +86,8 @@ const TokenOperations = () => {
                 if (!id) {
                     console.error('Could not determine MPTokenIssuanceID for issuance:', issuance);
                     console.error('Available fields:', Object.keys(issuance));
-                } else if (id.length !== 48) {
-                    console.warn(`Invalid MPTokenIssuanceID format: ${id} (length: ${id.length}, expected: 48)`);
+                } else if (id.length !== 64) {
+                    console.warn(`Invalid MPTokenIssuanceID format: ${id} (length: ${id.length}, expected: 64)`);
                 }
                 
                 return { ...issuance, metadata, MPTokenIssuanceID: id };
@@ -152,9 +155,9 @@ const TokenOperations = () => {
                 return;
             }
             
-            if (issuance.MPTokenIssuanceID.length !== 48) {
+            if (issuance.MPTokenIssuanceID.length !== 64) {
                 console.error('Invalid MPTokenIssuanceID format:', issuance.MPTokenIssuanceID);
-                showSnackbar(`Cannot destroy: Invalid token ID format (${issuance.MPTokenIssuanceID.length} chars, expected 48)`, 'error');
+                showSnackbar(`Cannot destroy: Invalid token ID format (${issuance.MPTokenIssuanceID.length} chars, expected 64)`, 'error');
                 return;
             }
             

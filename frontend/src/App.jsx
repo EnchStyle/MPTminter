@@ -270,23 +270,27 @@ function App() {
             
             if (result.result.validated) {
                 // Debug: Log the full transaction result to understand the structure
-                console.log('MPTokenIssuanceCreate result:', result.result);
-                console.log('Transaction meta:', result.result.meta);
+                const { debugMPTokenCreationResult } = await import('./utils/debugMPToken.js');
+                debugMPTokenCreationResult(result);
                 
-                // Try multiple ways to extract the MPTokenIssuanceID
-                let mptIssuanceId = result.result.meta.mpt_issuance_id;
+                // Extract the MPTokenIssuanceID from the transaction result
+                let mptIssuanceId = null;
                 
-                // If not found, look in CreatedNodes
-                if (!mptIssuanceId && result.result.meta.CreatedNodes) {
+                // Look in CreatedNodes for the MPTokenIssuance
+                if (result.result.meta.CreatedNodes) {
                     const createdNode = result.result.meta.CreatedNodes.find(
                         node => node.CreatedNode?.LedgerEntryType === 'MPTokenIssuance'
                     );
                     if (createdNode) {
                         console.log('Found CreatedNode:', createdNode);
-                        mptIssuanceId = createdNode.CreatedNode?.NewFields?.MPTokenIssuanceID ||
-                                       createdNode.CreatedNode?.FinalFields?.MPTokenIssuanceID ||
-                                       createdNode.CreatedNode?.index?.substring(0, 48);
+                        // For MPTokenIssuance objects, the index IS the MPTokenIssuanceID
+                        mptIssuanceId = createdNode.CreatedNode?.index;
                     }
+                }
+                
+                // Fallback to meta field if available
+                if (!mptIssuanceId) {
+                    mptIssuanceId = result.result.meta.mpt_issuance_id;
                 }
                 
                 if (!mptIssuanceId) {

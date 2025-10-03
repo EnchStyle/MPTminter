@@ -173,10 +173,14 @@ class XRPLService {
                 type: 'MPTokenIssuance'
             });
             
+            // Import debug utility at runtime to avoid circular dependencies
+            const { debugMPTokenIssuance } = await import('../utils/debugMPToken.js');
+            
             // Debug: Log the response to see what fields are available
             if (response.result.account_objects && response.result.account_objects.length > 0) {
                 console.log('MPTokenIssuance objects from account_objects:', response.result.account_objects);
-                console.log('First issuance object keys:', Object.keys(response.result.account_objects[0]));
+                // Debug the first issuance in detail
+                debugMPTokenIssuance(response.result.account_objects[0], 'First MPTokenIssuance');
             }
             
             return response.result.account_objects || [];

@@ -1,3 +1,5 @@
+import React from 'react';
+
 /**
  * Shared error handler for XRPL transactions
  * Provides consistent error messages across the application

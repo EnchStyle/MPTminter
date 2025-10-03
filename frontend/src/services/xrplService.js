@@ -309,9 +309,11 @@ class XRPLService {
     getConnectionStatus() {
         return this.connectionStatus;
     }
-
+    
     getExplorerUrl(txHash) {
-        return `${this.explorerUrl}/transactions/${txHash}`;
+        if (!txHash) return '';
+        // Using livenet.xrpl.org as the explorer for mainnet
+        return `https://livenet.xrpl.org/transactions/${txHash}`;
     }
 }
 

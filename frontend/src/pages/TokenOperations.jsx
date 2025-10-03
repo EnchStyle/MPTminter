@@ -15,6 +15,7 @@ import {
     DialogContent,
     DialogActions,
     CircularProgress,
+    TextField,
     List,
     ListItem,
     ListItemSecondaryAction,
@@ -44,6 +45,9 @@ const TokenOperations = () => {
     const [operation, setOperation] = useState(null);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
     const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null });
+    const [transactionStatus, setTransactionStatus] = useState({ processing: false, message: '', txHash: null });
+    const [destroyInProgress, setDestroyInProgress] = useState(false);
+    const [destroyConfirmText, setDestroyConfirmText] = useState('');
 
     // Load wallet from session
     useEffect(() => {
@@ -117,8 +121,8 @@ const TokenOperations = () => {
         loadIssuances();
     }, [loadIssuances]);
 
-    const showSnackbar = (message, severity = 'info') => {
-        setSnackbar({ open: true, message, severity });
+    const showSnackbar = (message, severity = 'info', duration = 6000) => {
+        setSnackbar({ open: true, message, severity, duration });
     };
 
     const copyToClipboard = (text, label = 'ID') => {
@@ -159,17 +163,36 @@ const TokenOperations = () => {
 
     const handleDestroy = async (issuance) => {
         try {
-            setLoading(true);
+            setDestroyInProgress(true);
+            setTransactionStatus({
+                processing: true,
+                message: 'Processing transaction...',
+                txHash: null
+            });
+            
+            // Close dialog immediately after clicking destroy
+            setConfirmDialog({ open: false, action: null });
+            
+            // Show transaction progress dialog
+            setTransactionStatus({
+                processing: true,
+                message: 'Preparing transaction...',
+                txHash: null
+            });
             // Validate MPTokenIssuanceID before attempting destroy
             if (!issuance.MPTokenIssuanceID) {
                 console.error('Missing MPTokenIssuanceID. Issuance object:', issuance);
                 showSnackbar('Cannot destroy: Missing token ID. Please refresh and try again.', 'error');
+                setDestroyInProgress(false);
+                setTransactionStatus({ processing: false, message: '', txHash: null });
                 return;
             }
             
             if (issuance.MPTokenIssuanceID.length !== 48 && issuance.MPTokenIssuanceID.length !== 64) {
                 console.error('Invalid MPTokenIssuanceID format:', issuance.MPTokenIssuanceID);
                 showSnackbar(`Cannot destroy: Invalid token ID format (${issuance.MPTokenIssuanceID.length} chars)`, 'error');
+                setDestroyInProgress(false);
+                setTransactionStatus({ processing: false, message: '', txHash: null });
                 return;
             }
             
@@ -177,6 +200,8 @@ const TokenOperations = () => {
             if (issuance.OutstandingAmount && parseInt(issuance.OutstandingAmount) > 0) {
                 console.error('Token has outstanding supply:', issuance.OutstandingAmount);
                 showSnackbar(`Cannot destroy: Token has ${issuance.OutstandingAmount} outstanding supply. All tokens must be burned first.`, 'error');
+                setDestroyInProgress(false);
+                setTransactionStatus({ processing: false, message: '', txHash: null });
                 return;
             }
             
@@ -197,12 +222,22 @@ const TokenOperations = () => {
 
             const result = await xrplService.submitTransaction(tx, wallet);
             console.log('Destroy transaction result:', result);
+            
+            // Extract transaction hash immediately
+            const initialTxHash = result.result?.tx_json?.hash || result.result?.hash || result.hash;
+            if (initialTxHash) {
+                setTransactionStatus({
+                    processing: true,
+                    message: `Transaction submitted: ${initialTxHash.substring(0, 8)}...`,
+                    txHash: initialTxHash
+                });
+            }
 
             // Check if transaction was successful
             // The result structure can vary depending on whether we got it from submit or waitForTransaction
             const validated = result.result?.validated || result.validated;
-            const engineResult = result.result?.engine_result;
-            const txHash = result.result?.hash || result.result?.tx_json?.hash;
+            const engineResult = result.result?.engine_result || result.engine_result;
+            const txHash = result.result?.hash || result.result?.tx_json?.hash || result.hash || initialTxHash;
             
             console.log('Transaction result details:', {
                 validated,
@@ -211,11 +246,46 @@ const TokenOperations = () => {
                 fullResult: result
             });
             
+            // Update transaction status with hash if available
+            if (txHash) {
+                setTransactionStatus({
+                    processing: true,
+                    message: `Transaction submitted: ${txHash.substring(0, 8)}...`,
+                    txHash: txHash
+                });
+            }
+            
             if (validated || engineResult === 'tesSUCCESS') {
-                const successMsg = txHash ? 
-                    `Token issuance destroyed successfully! Transaction: ${txHash}` :
-                    'Token issuance destroyed successfully!';
-                showSnackbar(successMsg, 'success');
+                // Success! Show success message with explorer link
+                const explorerUrl = xrplService.getExplorerUrl(txHash);
+                const tokenName = selectedIssuance?.metadata?.name || 'Token';
+                const successMsg = (
+                    <Box>
+                        <Typography variant="body2">
+                            ✅ {tokenName} has been permanently destroyed!
+                        </Typography>
+                        {txHash && (
+                            <Box sx={{ mt: 1 }}>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                                    Transaction: {txHash}
+                                </Typography>
+                                <br />
+                                <Button 
+                                    href={explorerUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    size="small"
+                                    variant="text"
+                                    sx={{ mt: 0.5, p: 0 }}
+                                >
+                                    View on XRPL Explorer →
+                                </Button>
+                            </Box>
+                        )}
+                    </Box>
+                );
+                setTransactionStatus({ processing: false, message: '', txHash: null });
+                showSnackbar(successMsg, 'success', 10000);
                 console.log('Destroy successful, transaction hash:', txHash);
                 await loadIssuances(); // Reload to remove destroyed issuance
             } else {
@@ -230,19 +300,46 @@ const TokenOperations = () => {
                 stack: error.stack
             });
             
+            const txHash = error.txHash || error.data?.tx_json?.hash || error.result?.tx_json?.hash || transactionStatus.txHash;
             let errorMsg = 'Failed to destroy token issuance';
             
             try {
-                errorMsg = formatErrorWithDetails(error, error.txHash);
+                errorMsg = formatErrorWithDetails(error, txHash);
             } catch (formatError) {
                 console.error('Error formatting error message:', formatError);
                 // Fallback to basic error message
                 errorMsg = error.message || 'Unknown error occurred';
             }
             
-            showSnackbar(errorMsg, 'error');
+            // Show error with transaction ID if available
+            const errorDisplay = (
+                <Box>
+                    <Typography variant="body2">{errorMsg}</Typography>
+                    {txHash && (
+                        <Box sx={{ mt: 1 }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                                Transaction: {txHash}
+                            </Typography>
+                            <br />
+                            <Button
+                                href={xrplService.getExplorerUrl(txHash)} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                size="small"
+                                variant="text"
+                                sx={{ mt: 0.5, p: 0 }}
+                            >
+                                Check on XRPL Explorer →
+                            </Button>
+                        </Box>
+                    )}
+                </Box>
+            );
+            
+            setTransactionStatus({ processing: false, message: '', txHash: null });
+            showSnackbar(errorDisplay, 'error', 10000);
         } finally {
-            setLoading(false);
+            setDestroyInProgress(false);
             setConfirmDialog({ open: false, action: null });
             setSelectedIssuance(null);
         }
@@ -456,7 +553,7 @@ const TokenOperations = () => {
                                                                 setSelectedIssuance(issuance);
                                                                 setOperation(isLocked ? 'unlock' : 'lock');
                                                             }}
-                                                            disabled={loading}
+                                                            disabled={loading || destroyInProgress || transactionStatus.processing}
                                                             color={isLocked ? "error" : "primary"}
                                                             startIcon={isLocked ? <LockIcon /> : <LockOpenIcon />}
                                                             size="small"
@@ -471,8 +568,9 @@ const TokenOperations = () => {
                                                         onClick={() => {
                                                             setSelectedIssuance(issuance);
                                                             setConfirmDialog({ open: true, action: 'destroy' });
+                                            setDestroyConfirmText(''); // Reset confirmation text
                                                         }}
-                                                        disabled={loading}
+                                                        disabled={loading || destroyInProgress || transactionStatus.processing}
                                                         color="error"
                                                         startIcon={<DeleteForeverIcon />}
                                                         size="small"
@@ -531,34 +629,131 @@ const TokenOperations = () => {
             {/* Destroy Confirmation Dialog */}
             <Dialog
                 open={confirmDialog.open && confirmDialog.action === 'destroy'}
-                onClose={() => setConfirmDialog({ open: false, action: null })}
+                onClose={() => {
+                    if (!destroyInProgress && !transactionStatus.processing) {
+                        setConfirmDialog({ open: false, action: null });
+                        setDestroyConfirmText('');
+                    }
+                }}
+                maxWidth="sm"
+                fullWidth
             >
                 <DialogTitle>Destroy Token Issuance</DialogTitle>
                 <DialogContent>
-                    {selectedIssuance?.metadata && (
-                        <Box sx={{ mb: 2 }}>
-                            <Typography variant="subtitle1">
-                                {selectedIssuance.metadata.name} ({selectedIssuance.metadata.currencyCode})
-                            </Typography>
-                            {selectedIssuance.metadata.description && (
-                                <Typography variant="body2" color="text.secondary">
-                                    {selectedIssuance.metadata.description}
-                                </Typography>
+                    {selectedIssuance && (
+                        <>
+                            {/* Token Details */}
+                            <Box sx={{ mb: 3, p: 2, bgcolor: 'background.paper', borderRadius: 1, border: 1, borderColor: 'divider' }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                                    {selectedIssuance.metadata?.iconUrl && (
+                                        <Avatar 
+                                            src={selectedIssuance.metadata.iconUrl} 
+                                            sx={{ mr: 2, width: 48, height: 48 }}
+                                        />
+                                    )}
+                                    <Box>
+                                        <Typography variant="h6">
+                                            {selectedIssuance.metadata?.name || 'Unnamed Token'}
+                                        </Typography>
+                                        {selectedIssuance.metadata?.currencyCode && (
+                                            <Typography variant="body2" color="text.secondary">
+                                                Currency Code: {selectedIssuance.metadata.currencyCode}
+                                            </Typography>
+                                        )}
+                                    </Box>
+                                </Box>
+                                
+                                {selectedIssuance.metadata?.description && (
+                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                        {selectedIssuance.metadata.description}
+                                    </Typography>
+                                )}
+                                
+                                <Grid container spacing={2}>
+                                    <Grid item xs={6}>
+                                        <Typography variant="caption" color="text.secondary">Maximum Supply</Typography>
+                                        <Typography variant="body2">
+                                            {selectedIssuance.MaximumAmount || 'Unlimited'}
+                                        </Typography>
+                                    </Grid>
+                                    <Grid item xs={6}>
+                                        <Typography variant="caption" color="text.secondary">Outstanding Supply</Typography>
+                                        <Typography variant="body2" fontWeight="bold">
+                                            {selectedIssuance.OutstandingAmount || '0'}
+                                        </Typography>
+                                    </Grid>
+                                </Grid>
+                            </Box>
+                            
+                            {/* Supply Warning */}
+                            {selectedIssuance.OutstandingAmount && parseInt(selectedIssuance.OutstandingAmount) > 0 ? (
+                                <Alert severity="error" sx={{ mb: 2 }}>
+                                    <Typography variant="subtitle2" gutterBottom>
+                                        Cannot destroy this token issuance!
+                                    </Typography>
+                                    <Typography variant="body2">
+                                        There are still <strong>{selectedIssuance.OutstandingAmount}</strong> tokens in circulation.
+                                        All tokens must be burned before the issuance can be destroyed.
+                                    </Typography>
+                                </Alert>
+                            ) : (
+                                <Alert severity="success" sx={{ mb: 2 }}>
+                                    <Typography variant="subtitle2" gutterBottom>
+                                        This token can be destroyed
+                                    </Typography>
+                                    <Typography variant="body2">
+                                        No tokens are currently in circulation (outstanding supply is 0).
+                                    </Typography>
+                                </Alert>
                             )}
-                        </Box>
+                            
+                            {/* Final Warning */}
+                            <Alert severity="warning" sx={{ mb: 2 }}>
+                                <Typography variant="subtitle2" gutterBottom>
+                                    ⚠️ This action is irreversible!
+                                </Typography>
+                                <Typography variant="body2">
+                                    Once destroyed, this token issuance cannot be recovered.
+                                    You will not be able to mint new tokens of this type.
+                                </Typography>
+                            </Alert>
+                            
+                            {/* Confirmation Input */}
+                            <Box sx={{ mb: 2 }}>
+                                <Typography variant="body2" sx={{ mb: 1 }}>
+                                    To confirm, please type <strong>DESTROY</strong> below:
+                                </Typography>
+                                <TextField
+                                    fullWidth
+                                    size="small"
+                                    value={destroyConfirmText}
+                                    onChange={(e) => setDestroyConfirmText(e.target.value)}
+                                    placeholder="Type DESTROY to confirm"
+                                    disabled={destroyInProgress || transactionStatus.processing}
+                                    autoComplete="off"
+                                />
+                            </Box>
+                            
+                            {/* Token ID */}
+                            <Box sx={{ p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
+                                <Typography variant="caption" color="text.secondary">
+                                    Token Issuance ID:
+                                </Typography>
+                                <Typography variant="caption" sx={{ wordBreak: 'break-all', fontFamily: 'monospace' }}>
+                                    {selectedIssuance.MPTokenIssuanceID}
+                                </Typography>
+                            </Box>
+                        </>
                     )}
-                    <Alert severity="error" sx={{ mb: 2 }}>
-                        This action is irreversible! The token issuance will be permanently destroyed.
-                    </Alert>
-                    <Typography variant="body2" sx={{ mb: 2 }}>
-                        Issuance ID: {selectedIssuance?.MPTokenIssuanceID}
-                    </Typography>
-                    <Alert severity="info">
-                        Note: You can only destroy an issuance if there are no outstanding tokens.
-                    </Alert>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setConfirmDialog({ open: false, action: null })}>
+                    <Button 
+                        onClick={() => {
+                            setConfirmDialog({ open: false, action: null });
+                            setDestroyConfirmText('');
+                        }}
+                        disabled={destroyInProgress || transactionStatus.processing}
+                    >
                         Cancel
                     </Button>
                     <Button
@@ -572,22 +767,57 @@ const TokenOperations = () => {
                         }}
                         variant="contained"
                         color="error"
-                        disabled={loading}
+                        disabled={
+                            destroyInProgress || 
+                            transactionStatus.processing ||
+                            destroyConfirmText !== 'DESTROY' ||
+                            (selectedIssuance?.OutstandingAmount && parseInt(selectedIssuance.OutstandingAmount) > 0)
+                        }
+                        startIcon={destroyInProgress ? <CircularProgress size={20} /> : <DeleteForeverIcon />}
                     >
-                        {loading ? <CircularProgress size={24} /> : 'Destroy Permanently'}
+                        {destroyInProgress ? 'Destroying...' : 'Destroy Permanently'}
                     </Button>
                 </DialogActions>
+            </Dialog>
+            
+            {/* Transaction Progress Dialog */}
+            <Dialog
+                open={transactionStatus.processing}
+                PaperProps={{
+                    sx: { minWidth: 400 }
+                }}
+            >
+                <DialogContent>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 3 }}>
+                        <CircularProgress size={48} sx={{ mb: 3 }} />
+                        <Typography variant="h6" gutterBottom>
+                            {transactionStatus.message || 'Processing transaction...'}
+                        </Typography>
+                        {transactionStatus.txHash && (
+                            <Box sx={{ mt: 2, textAlign: 'center' }}>
+                                <Typography variant="caption" color="text.secondary">Transaction Hash:</Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontFamily: 'monospace', wordBreak: 'break-all', mt: 0.5 }}>
+                                    {transactionStatus.txHash}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                                    This may take a few seconds...
+                                </Typography>
+                            </Box>
+                        )}
+                    </Box>
+                </DialogContent>
             </Dialog>
 
             <Snackbar
                 open={snackbar.open}
-                autoHideDuration={6000}
+                autoHideDuration={snackbar.duration || 6000}
                 onClose={() => setSnackbar({ ...snackbar, open: false })}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
             >
                 <Alert 
                     onClose={() => setSnackbar({ ...snackbar, open: false })} 
                     severity={snackbar.severity}
+                    sx={{ maxWidth: 600 }}
                 >
                     {snackbar.message}
                 </Alert>

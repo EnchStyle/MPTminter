@@ -172,8 +172,16 @@ class XRPLService {
                 account: issuerAddress,
                 type: 'MPTokenIssuance'
             });
+            
+            // Debug: Log the response to see what fields are available
+            if (response.result.account_objects && response.result.account_objects.length > 0) {
+                console.log('MPTokenIssuance objects from account_objects:', response.result.account_objects);
+                console.log('First issuance object keys:', Object.keys(response.result.account_objects[0]));
+            }
+            
             return response.result.account_objects || [];
         } catch (e) {
+            console.error('Error fetching MPTokenIssuances:', e);
             return [];
         }
     }

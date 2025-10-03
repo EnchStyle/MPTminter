@@ -32,6 +32,7 @@ import { xrplService } from '../services/xrplService';
 import { sessionService } from '../services/sessionService';
 import { metadataService } from '../services/metadataService';
 import { formatErrorWithDetails } from '../utils/errorHandler';
+import { extractMPTokenIssuanceID } from '../utils/mptokenUtils';
 import * as xrpl from 'xrpl';
 
 const TokenOperations = () => {
@@ -64,19 +65,26 @@ const TokenOperations = () => {
         try {
             const issuances = await xrplService.getMPTokenIssuances(wallet.classicAddress);
             
+            // Get stored issuance IDs from session
+            const storedIssuances = sessionService.getTokenIssuances(wallet.classicAddress);
+            console.log('Stored issuances:', storedIssuances);
+            
             // Parse metadata for each issuance
             const issuancesWithMetadata = issuances.map(issuance => {
                 const metadata = issuance.MPTokenMetadata ? 
                     metadataService.parseMetadata(issuance.MPTokenMetadata) : null;
                 
-                // Extract the MPTokenIssuanceID from the response
-                // According to XLS-0033, MPTokenIssuanceID is a 192-bit (48 hex character) value
-                // The 'index' field (64 chars) is the ledger object ID, not the MPTokenIssuanceID
-                let id = issuance.MPTokenIssuanceID;
+                // Debug: Log the issuance object to see what fields are available
+                console.log('Issuance object:', issuance);
                 
-                // Validate the ID format
-                if (!id || id.length !== 48) {
-                    console.warn(`Invalid MPTokenIssuanceID format: ${id}`);
+                // Extract the MPTokenIssuanceID using our utility function
+                const id = extractMPTokenIssuanceID(issuance, storedIssuances);
+                
+                if (!id) {
+                    console.error('Could not determine MPTokenIssuanceID for issuance:', issuance);
+                    console.error('Available fields:', Object.keys(issuance));
+                } else if (id.length !== 48) {
+                    console.warn(`Invalid MPTokenIssuanceID format: ${id} (length: ${id.length}, expected: 48)`);
                 }
                 
                 return { ...issuance, metadata, MPTokenIssuanceID: id };
@@ -137,6 +145,19 @@ const TokenOperations = () => {
     const handleDestroy = async (issuance) => {
         setLoading(true);
         try {
+            // Validate MPTokenIssuanceID before attempting destroy
+            if (!issuance.MPTokenIssuanceID) {
+                console.error('Missing MPTokenIssuanceID. Issuance object:', issuance);
+                showSnackbar('Cannot destroy: Missing token ID. Please refresh and try again.', 'error');
+                return;
+            }
+            
+            if (issuance.MPTokenIssuanceID.length !== 48) {
+                console.error('Invalid MPTokenIssuanceID format:', issuance.MPTokenIssuanceID);
+                showSnackbar(`Cannot destroy: Invalid token ID format (${issuance.MPTokenIssuanceID.length} chars, expected 48)`, 'error');
+                return;
+            }
+            
             // Skip holder check for now - let XRPL validate
             // const holders = await checkTokenHolders(issuance.MPTokenIssuanceID);
             // if (holders.length > 0) {
@@ -149,6 +170,8 @@ const TokenOperations = () => {
                 Account: wallet.classicAddress,
                 MPTokenIssuanceID: issuance.MPTokenIssuanceID
             };
+            
+            console.log('Submitting MPTokenIssuanceDestroy transaction:', tx);
 
             const result = await xrplService.submitTransaction(tx, wallet);
 

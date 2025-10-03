@@ -64,6 +64,35 @@ class SessionService {
             return null;
         }
     }
+    
+    // Store token issuance IDs mapped to their sequence numbers
+    saveTokenIssuance(issuerAddress, sequence, mptIssuanceId) {
+        try {
+            const key = `mpt-issuances-${issuerAddress}`;
+            const saved = localStorage.getItem(key);
+            const issuances = saved ? JSON.parse(saved) : {};
+            
+            issuances[sequence] = {
+                mptIssuanceId,
+                timestamp: Date.now()
+            };
+            
+            localStorage.setItem(key, JSON.stringify(issuances));
+        } catch (err) {
+            console.warn('Failed to save token issuance:', err);
+        }
+    }
+    
+    getTokenIssuances(issuerAddress) {
+        try {
+            const key = `mpt-issuances-${issuerAddress}`;
+            const saved = localStorage.getItem(key);
+            return saved ? JSON.parse(saved) : {};
+        } catch (err) {
+            console.warn('Failed to load token issuances:', err);
+            return {};
+        }
+    }
 }
 
 export const sessionService = new SessionService();

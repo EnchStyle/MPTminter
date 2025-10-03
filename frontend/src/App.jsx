@@ -269,10 +269,53 @@ function App() {
             const result = await xrplService.submitTransaction(tx, wallet);
             
             if (result.result.validated) {
-                const mptIssuanceId = result.result.meta.mpt_issuance_id ||
-                    result.result.meta.CreatedNode?.find(
-                        node => node.LedgerEntryType === 'MPTokenIssuance'
-                    )?.NewFields?.MPTokenIssuanceID;
+                // Debug: Log the full transaction result to understand the structure
+                console.log('MPTokenIssuanceCreate result:', result.result);
+                console.log('Transaction meta:', result.result.meta);
+                
+                // Try multiple ways to extract the MPTokenIssuanceID
+                let mptIssuanceId = result.result.meta.mpt_issuance_id;
+                
+                // If not found, look in CreatedNodes
+                if (!mptIssuanceId && result.result.meta.CreatedNodes) {
+                    const createdNode = result.result.meta.CreatedNodes.find(
+                        node => node.CreatedNode?.LedgerEntryType === 'MPTokenIssuance'
+                    );
+                    if (createdNode) {
+                        console.log('Found CreatedNode:', createdNode);
+                        mptIssuanceId = createdNode.CreatedNode?.NewFields?.MPTokenIssuanceID ||
+                                       createdNode.CreatedNode?.FinalFields?.MPTokenIssuanceID ||
+                                       createdNode.CreatedNode?.index?.substring(0, 48);
+                    }
+                }
+                
+                if (!mptIssuanceId) {
+                    console.error('Could not extract MPTokenIssuanceID from transaction result');
+                    throw new Error('Failed to extract token ID from creation transaction');
+                }
+                
+                console.log('Extracted MPTokenIssuanceID:', mptIssuanceId);
+                
+                // Save the MPTokenIssuanceID for future reference
+                // Extract sequence from the transaction result or created node
+                let sequence = result.result.Sequence;
+                
+                // If not found in result, look in the created MPTokenIssuance node
+                if (sequence === undefined && result.result.meta.CreatedNodes) {
+                    const createdIssuance = result.result.meta.CreatedNodes.find(
+                        node => node.CreatedNode?.LedgerEntryType === 'MPTokenIssuance'
+                    );
+                    if (createdIssuance?.CreatedNode?.NewFields?.Sequence !== undefined) {
+                        sequence = createdIssuance.CreatedNode.NewFields.Sequence;
+                    }
+                }
+                
+                if (sequence !== undefined) {
+                    console.log(`Saving MPTokenIssuanceID for sequence ${sequence}: ${mptIssuanceId}`);
+                    sessionService.saveTokenIssuance(wallet.classicAddress, sequence, mptIssuanceId);
+                } else {
+                    console.warn('Could not determine sequence number for token issuance');
+                }
 
                 setTxState(prev => ({
                     ...prev,

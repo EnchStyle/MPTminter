@@ -329,6 +329,7 @@ class XRPLService {
             };
             
             console.log('Submitting MPT Clawback transaction:', tx);
+            console.log('Raw MPT Clawback transaction JSON:', JSON.stringify(tx, null, 2));
             const result = await this.submitTransaction(tx, issuerWallet);
             return result;
         } catch (error) {
@@ -339,7 +340,9 @@ class XRPLService {
                 console.log('Clawback tecNO_PERMISSION details:', {
                     error: error.data,
                     tx: tx,
-                    issuer: issuerWallet.classicAddress
+                    issuer: issuerWallet.classicAddress,
+                    rawTx: JSON.stringify(tx, null, 2),
+                    errorTxJson: error.data?.tx_json ? JSON.stringify(error.data.tx_json, null, 2) : 'No tx_json in error'
                 });
                 
                 // Enhanced error for MPT clawback permission issues

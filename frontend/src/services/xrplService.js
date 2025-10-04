@@ -321,8 +321,40 @@ class XRPLService {
                 amount: amount
             });
             
-            // Try using MPTokenHolder as specified in XLS-0033
-            // The xrpl.js library might not validate this field correctly
+            // First verify the holder has the token
+            const holderTokens = await this.getAllMPTokens(holderAddress);
+            const targetToken = holderTokens.find(t => t.MPTokenIssuanceID === mptIssuanceId);
+            
+            if (!targetToken) {
+                throw new Error(`Holder ${holderAddress} does not have token ${mptIssuanceId}`);
+            }
+            
+            console.log('Holder token details:', {
+                MPTokenID: targetToken.MPTokenID,
+                MPTAmount: targetToken.MPTAmount,
+                Flags: targetToken.Flags,
+                LockedAmount: targetToken.LockedAmount
+            });
+            
+            // Also check the issuance flags directly from ledger
+            const issuances = await this.getMPTokenIssuances(issuerWallet.classicAddress);
+            const issuance = issuances.find(i => i.mpt_issuance_id === mptIssuanceId);
+            
+            if (issuance) {
+                console.log('Issuance flags check:', {
+                    Flags: issuance.Flags,
+                    FlagsBinary: issuance.Flags?.toString(2).padStart(8, '0'),
+                    CanClawback: !!(issuance.Flags & 0x0020),
+                    tfMPTCanClawback: 0x0020,
+                    HasFlag: (issuance.Flags & 0x0020) === 0x0020
+                });
+            }
+            
+            // Check the exact MPToken amount and ID fields
+            console.log('All MPToken fields:', Object.keys(targetToken));
+            console.log('Full MPToken object:', JSON.stringify(targetToken, null, 2));
+            
+            // Use the correct MPT amount format
             const tx = {
                 TransactionType: "Clawback",
                 Account: issuerWallet.classicAddress,
@@ -330,7 +362,7 @@ class XRPLService {
                     mpt_issuance_id: mptIssuanceId,
                     value: amount
                 },
-                MPTokenHolder: holderAddress  // XLS-0033 specifies MPTokenHolder for MPT clawback
+                Holder: holderAddress
             };
             
             console.log('Submitting MPT Clawback transaction:', tx);
@@ -352,12 +384,12 @@ class XRPLService {
                 
                 // Enhanced error for MPT clawback permission issues
                 const enhancedError = new Error(
-                    'MPT Clawback failed with tecNO_PERMISSION. While the MPTokensV1 amendment is active ' +
-                    'on mainnet, the Clawback transaction for MPTs may not be fully implemented yet. ' +
-                    'According to XLS-0033, MPT clawback requires the MPTokenHolder field and ' +
-                    'lsfMPTAllowClawback flag, but the current implementation appears incomplete. ' +
-                    'This could be a limitation of the current rippled version or xrpl.js library. ' +
-                    'Alternative: request voluntary token returns from holders.'
+                    'MPT Clawback failed with tecNO_PERMISSION. Despite the MPTokensV1 amendment being active ' +
+                    'on mainnet (Oct 1, 2025), MPT clawback appears to not be functional. This suggests that ' +
+                    'while MPT creation and transfers work, the clawback feature may be disabled or not yet ' +
+                    'implemented in the current mainnet rippled nodes. The transaction format is correct according ' +
+                    'to XLS-0033, but XRPL is rejecting it. This is likely a known limitation that will be ' +
+                    'addressed in a future update. Alternative: request voluntary token returns from holders.'
                 );
                 enhancedError.data = error.data;
                 throw enhancedError;

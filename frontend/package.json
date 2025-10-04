@@ -22,7 +22,7 @@
     "react-router-dom": "^6.20.1",
     "stream-browserify": "^3.0.0",
     "util": "^0.12.5",
-    "xrpl": "^4.4.2"
+    "xrpl": "^4.0.1-mpt-beta"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",

@@ -53,9 +53,9 @@ const TokenHolderManager = ({ wallet, issuance, onUpdate }) => {
     };
 
     // Define flags
-    const canClawback = issuance?.Flags && (issuance.Flags & 0x0020); // CanClawback flag
-    const requiresAuth = issuance?.Flags && (issuance.Flags & 0x0002); // RequireAuth flag
-    const isLocked = issuance?.CurrentFlags && (issuance.CurrentFlags & 0x0001); // Token is currently locked
+    const canClawback = !!(issuance?.Flags && (issuance.Flags & 0x0020)); // CanClawback flag
+    const requiresAuth = !!(issuance?.Flags && (issuance.Flags & 0x0002)); // RequireAuth flag
+    const isLocked = !!(issuance?.CurrentFlags && (issuance.CurrentFlags & 0x0001)); // Token is currently locked
 
     // Debug token details
     useEffect(() => {
@@ -183,11 +183,18 @@ const TokenHolderManager = ({ wallet, issuance, onUpdate }) => {
 
     // Clawback tokens
     const handleClawback = async () => {
+        console.log('handleClawback called with:', clawbackDialog);
         const { holder, amount } = clawbackDialog;
-        if (!holder || !amount || parseFloat(amount) <= 0) return;
+        if (!holder || !amount || parseFloat(amount) <= 0) {
+            console.log('Validation failed:', { holder, amount, parsed: parseFloat(amount) });
+            return;
+        }
 
         setLoading(true);
         try {
+            // Scale the amount according to the token's scale
+            const scaledAmount = (parseFloat(amount) * Math.pow(10, issuance.AssetScale || 0)).toString();
+
             // Debug clawback attempt
             console.log('Attempting clawback:', {
                 issuer: wallet.classicAddress,
@@ -203,9 +210,6 @@ const TokenHolderManager = ({ wallet, issuance, onUpdate }) => {
                 holderBalance: holder.MPTokenAmount,
                 scaledAmount: scaledAmount
             });
-
-            // Scale the amount according to the token's scale
-            const scaledAmount = (parseFloat(amount) * Math.pow(10, issuance.AssetScale || 0)).toString();
 
             // Use the dedicated clawback method
             const result = await xrplService.submitClawback(
@@ -471,7 +475,17 @@ const TokenHolderManager = ({ wallet, issuance, onUpdate }) => {
                         Cancel
                     </Button>
                     <Button
-                        onClick={handleClawback}
+                        onClick={() => {
+                            console.log('Clawback button clicked', {
+                                loading,
+                                amount: clawbackDialog.amount,
+                                parsedAmount: parseFloat(clawbackDialog.amount),
+                                canClawback,
+                                isLocked,
+                                isDisabled: loading || !clawbackDialog.amount || parseFloat(clawbackDialog.amount) <= 0 || !canClawback || isLocked
+                            });
+                            handleClawback();
+                        }}
                         variant="contained"
                         color="error"
                         disabled={loading || !clawbackDialog.amount || parseFloat(clawbackDialog.amount) <= 0 || !canClawback || isLocked}

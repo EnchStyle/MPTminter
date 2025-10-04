@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
     Box,
     Typography,
@@ -18,6 +18,18 @@ const TokenConfigStep = React.memo(({
     validateField,
     errors
 }) => {
+    // Log current state for debugging
+    useEffect(() => {
+        console.log('TokenConfigStep formData:', formData);
+        console.log('Capabilities state:', {
+            canLock: formData.canLock,
+            requireAuth: formData.requireAuth,
+            canEscrow: formData.canEscrow,
+            canTrade: formData.canTrade,
+            canTransfer: formData.canTransfer,
+            canClawback: formData.canClawback
+        });
+    }, [formData]);
     const handleFieldChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
         
@@ -36,7 +48,12 @@ const TokenConfigStep = React.memo(({
     };
 
     const handleCapabilityChange = (capability) => {
-        setFormData(prev => ({ ...prev, [capability]: !prev[capability] }));
+        console.log(`Changing capability ${capability} from ${formData[capability]} to ${!formData[capability]}`);
+        setFormData(prev => {
+            const newValue = !prev[capability];
+            console.log(`Setting ${capability} to ${newValue}`);
+            return { ...prev, [capability]: newValue };
+        });
     };
 
     const capabilities = [
@@ -153,16 +170,30 @@ const TokenConfigStep = React.memo(({
                                         bgcolor: formData[capability.key] ? 'action.selected' : 'action.hover'
                                     }
                                 }}
-                                onClick={() => handleCapabilityChange(capability.key)}
+                                onClick={(e) => {
+                                    // Only handle click if not clicking on checkbox
+                                    if (e.target.type !== 'checkbox') {
+                                        handleCapabilityChange(capability.key);
+                                    }
+                                }}
                             >
                                 <Box display="flex" alignItems="center" justifyContent="space-between">
                                     <Box display="flex" alignItems="center" gap={1}>
                                         <Checkbox
-                                            checked={formData[capability.key]}
-                                            onChange={() => handleCapabilityChange(capability.key)}
+                                            checked={!!formData[capability.key]}
+                                            onChange={(e) => {
+                                                e.stopPropagation();
+                                                handleCapabilityChange(capability.key);
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
                                             color="primary"
+                                            inputProps={{ 'aria-label': capability.label }}
                                         />
-                                        <Box>
+                                        <Box onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleCapabilityChange(capability.key);
+                                        }}
+                                        style={{ cursor: 'pointer' }}>
                                             <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
                                                 {capability.label}
                                             </Typography>

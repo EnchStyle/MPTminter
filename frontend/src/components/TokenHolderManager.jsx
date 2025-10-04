@@ -429,10 +429,12 @@ const TokenHolderManager = ({ wallet, issuance, onUpdate }) => {
                     <Alert severity="warning" sx={{ mb: 2 }}>
                         This will forcibly return tokens from the holder to you.
                     </Alert>
-                    <Alert severity="info" sx={{ mb: 2 }}>
-                        <strong>Known Issue:</strong> MPT clawback may fail with "No Permission" error even if all 
-                        requirements are met. This appears to be because the Clawback transaction type doesn't 
-                        fully support MPTs on mainnet yet, despite the CanClawback flag being available.
+                    <Alert severity="warning" sx={{ mb: 2 }}>
+                        <strong>Not Available on Mainnet:</strong> MPT clawback is not yet supported on mainnet. 
+                        MPTs (Multi-Purpose Tokens) including their clawback feature are currently only available 
+                        on test networks (devnets) as part of XLS-0033. Mainnet support requires validator 
+                        consensus after testing is complete. For now, you must request voluntary token returns 
+                        from holders.
                     </Alert>
                     {!canClawback && (
                         <Alert severity="error" sx={{ mb: 2 }}>

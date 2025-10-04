@@ -347,10 +347,11 @@ class XRPLService {
                 
                 // Enhanced error for MPT clawback permission issues
                 const enhancedError = new Error(
-                    'MPT Clawback failed with tecNO_PERMISSION. This likely means the Clawback ' +
-                    'transaction type doesn\'t fully support MPTs on mainnet yet, even though the ' +
-                    'CanClawback flag exists. This is a known limitation. Alternative: request ' +
-                    'voluntary token return from holders.'
+                    'MPT Clawback is not yet supported on mainnet. MPTs (Multi-Purpose Tokens) are ' +
+                    'currently only available on test networks (devnets). The Clawback transaction ' +
+                    'for MPTs is part of XLS-0033 but has not been enabled on mainnet yet. ' +
+                    'This requires validator consensus after thorough testing. For now, you\'ll need ' +
+                    'to request voluntary token returns from holders.'
                 );
                 enhancedError.data = error.data;
                 throw enhancedError;

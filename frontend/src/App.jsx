@@ -172,14 +172,20 @@ function App() {
         }
     }, [showSnackbar]);
 
-    const connectWallet = useCallback(async () => {
+    const connectWallet = useCallback(async (secretKey) => {
         setLoading(true);
         setError(null);
         setWarnings({});
         
         try {
-            const secret = formData.secretKey.trim();
+            console.log('connectWallet called with secretKey:', secretKey);
+            
+            const secret = secretKey ? secretKey.trim() : formData.secretKey.trim();
+            console.log('Using secret:', secret);
+            
             const error = validationService.validateSecretKey(secret);
+            console.log('Validation result:', error);
+            
             if (error) throw new Error(error);
 
             // Create wallet first

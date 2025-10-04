@@ -39,8 +39,8 @@ const WalletConnectionStep = React.memo(({
         setError('');
 
         try {
-            await onConnect(secretKey);
             setFormData(prev => ({ ...prev, secretKey }));
+            await onConnect(secretKey);
         } catch (error) {
             setError(error.message);
         } finally {

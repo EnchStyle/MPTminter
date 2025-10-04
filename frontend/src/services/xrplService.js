@@ -103,10 +103,26 @@ class XRPLService {
             // Log the transaction before autofill
             console.log('Pre-autofill transaction:', JSON.stringify(tx, null, 2));
             
-            const prepared = await client.autofill(tx);
-            console.log('Autofilled transaction:', JSON.stringify(prepared, null, 2));
+            let prepared;
+            let signed;
             
-            const signed = wallet.sign(prepared);
+            // Special handling for MPT Clawback - bypass xrpl.js validation
+            if (tx.TransactionType === 'Clawback' && tx.MPTokenHolder && tx.Amount?.mpt_issuance_id) {
+                // Temporarily add Holder field for validation
+                tx.Holder = tx.MPTokenHolder;
+                prepared = await client.autofill(tx);
+                // Remove Holder and keep only MPTokenHolder for actual submission
+                delete prepared.Holder;
+                console.log('Autofilled transaction (MPT clawback adjusted):', JSON.stringify(prepared, null, 2));
+                
+                signed = wallet.sign(prepared);
+            } else {
+                prepared = await client.autofill(tx);
+                console.log('Autofilled transaction:', JSON.stringify(prepared, null, 2));
+                
+                signed = wallet.sign(prepared);
+            }
+            
             console.log('Transaction signed, hash:', signed.hash || 'N/A');
             console.log('Signed transaction details:', {
                 tx_blob: signed.tx_blob.substring(0, 50) + '...',

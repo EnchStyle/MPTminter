@@ -316,8 +316,8 @@ class XRPLService {
                 amount: amount
             });
             
-            // The xrpl.js library expects "Holder" field, not "MPTokenHolder"
-            // even for MPT clawback transactions
+            // Try using MPTokenHolder as specified in XLS-0033
+            // The xrpl.js library might not validate this field correctly
             const tx = {
                 TransactionType: "Clawback",
                 Account: issuerWallet.classicAddress,
@@ -325,7 +325,7 @@ class XRPLService {
                     mpt_issuance_id: mptIssuanceId,
                     value: amount
                 },
-                Holder: holderAddress  // Use "Holder" for both IOU and MPT clawback
+                MPTokenHolder: holderAddress  // XLS-0033 specifies MPTokenHolder for MPT clawback
             };
             
             console.log('Submitting MPT Clawback transaction:', tx);
@@ -347,11 +347,12 @@ class XRPLService {
                 
                 // Enhanced error for MPT clawback permission issues
                 const enhancedError = new Error(
-                    'MPT Clawback is not yet supported on mainnet. MPTs (Multi-Purpose Tokens) are ' +
-                    'currently only available on test networks (devnets). The Clawback transaction ' +
-                    'for MPTs is part of XLS-0033 but has not been enabled on mainnet yet. ' +
-                    'This requires validator consensus after thorough testing. For now, you\'ll need ' +
-                    'to request voluntary token returns from holders.'
+                    'MPT Clawback failed with tecNO_PERMISSION. While the MPTokensV1 amendment is active ' +
+                    'on mainnet, the Clawback transaction for MPTs may not be fully implemented yet. ' +
+                    'According to XLS-0033, MPT clawback requires the MPTokenHolder field and ' +
+                    'lsfMPTAllowClawback flag, but the current implementation appears incomplete. ' +
+                    'This could be a limitation of the current rippled version or xrpl.js library. ' +
+                    'Alternative: request voluntary token returns from holders.'
                 );
                 enhancedError.data = error.data;
                 throw enhancedError;

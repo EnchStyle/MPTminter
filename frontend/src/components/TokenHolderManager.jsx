@@ -430,11 +430,11 @@ const TokenHolderManager = ({ wallet, issuance, onUpdate }) => {
                         This will forcibly return tokens from the holder to you.
                     </Alert>
                     <Alert severity="warning" sx={{ mb: 2 }}>
-                        <strong>Not Available on Mainnet:</strong> MPT clawback is not yet supported on mainnet. 
-                        MPTs (Multi-Purpose Tokens) including their clawback feature are currently only available 
-                        on test networks (devnets) as part of XLS-0033. Mainnet support requires validator 
-                        consensus after testing is complete. For now, you must request voluntary token returns 
-                        from holders.
+                        <strong>Implementation Issue:</strong> MPT clawback is failing with tecNO_PERMISSION. 
+                        While the MPTokensV1 amendment is active on mainnet, the Clawback transaction for MPTs 
+                        appears to be incomplete. XLS-0033 specifies MPTokenHolder field and lsfMPTAllowClawback 
+                        flag requirements that may not be fully implemented in the current rippled or xrpl.js. 
+                        For now, you must request voluntary token returns from holders.
                     </Alert>
                     {!canClawback && (
                         <Alert severity="error" sx={{ mb: 2 }}>

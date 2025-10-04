@@ -583,11 +583,15 @@ function App() {
             case 1: // Token Information
                 return !!(formData.currencyCode && formData.name && formData.description);
             case 2: // Token Configuration
-                return formData.assetScale !== undefined && 
+                const isComplete = formData.assetScale !== undefined && 
                        formData.assetScale !== '' && 
-                       formData.transferFee !== undefined &&
-                       formData.transferFee !== '' &&
-                       activeStep > 2;
+                       formData.transferFee !== undefined;
+                console.log('Step 2 completion check:', {
+                    assetScale: formData.assetScale,
+                    transferFee: formData.transferFee,
+                    isComplete
+                });
+                return isComplete;
             case 3: // Metadata (Optional)
                 return activeStep > 3; // Optional step, just check if moved past
             case 4: // Review & Create
